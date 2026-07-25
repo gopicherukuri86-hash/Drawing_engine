@@ -105,7 +105,7 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
 
     if ('touches' in e) {
       clientX = e.touches[0].clientX;
-      clientY = e.clientY ? e.clientY : e.touches[0].clientY;
+      clientY = e.touches[0].clientY;
     } else {
       clientX = e.clientX;
       clientY = e.clientY;

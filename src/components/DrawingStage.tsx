@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { DrawingStep } from '../types';
 import { Play, Pause, SkipBack, SkipForward, RefreshCw, Volume2, VolumeX, Eye, Sparkles } from 'lucide-react';
 import { speakInstruction, stopSpeech, isSpeechSupported } from '../utils/speech';
@@ -11,7 +11,6 @@ interface DrawingStageProps {
   title?: string;
   autoPlay: boolean;
   onToggleAutoPlay: () => void;
-  playSpeedMs?: number;
   voiceEnabled?: boolean;
   onToggleVoice?: () => void;
   onAutoAdvance?: () => void;
@@ -41,6 +40,11 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
 
+  const autoPlayRef = useRef(autoPlay);
+  useEffect(() => {
+    autoPlayRef.current = autoPlay;
+  }, [autoPlay]);
+
   const currentStep = steps[currentStepIndex];
 
   // Trigger speech when step changes if voice is enabled
@@ -49,7 +53,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
       setIsSpeaking(true);
       speakInstruction(currentStep.instruction, () => {
         setIsSpeaking(false);
-        if (autoPlay && onAutoAdvance) {
+        if (autoPlayRef.current && onAutoAdvance) {
           onAutoAdvance();
         }
       });
@@ -57,7 +61,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
       stopSpeech();
       setIsSpeaking(false);
     }
-  }, [currentStepIndex, currentStep, voiceEnabled, autoPlay]);
+  }, [currentStepIndex, currentStep, voiceEnabled]);
 
   // Clean speech when unmounted
   useEffect(() => {
@@ -71,7 +75,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
       setIsSpeaking(true);
       speakInstruction(currentStep.instruction, () => {
         setIsSpeaking(false);
-        if (autoPlay && onAutoAdvance) {
+        if (autoPlayRef.current && onAutoAdvance) {
           onAutoAdvance();
         }
       });

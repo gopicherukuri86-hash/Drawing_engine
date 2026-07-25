@@ -1,6 +1,5 @@
 // Web Speech API wrapper for Kid Art Teacher voice narration
 
-let currentUtterance: SpeechSynthesisUtterance | null = null;
 let currentUtteranceId = 0;
 let cachedVoice: SpeechSynthesisVoice | null = null;
 
@@ -73,7 +72,6 @@ export function speakInstruction(text: string, onEnd?: () => void) {
     }
   };
 
-  currentUtterance = utterance;
   window.speechSynthesis.speak(utterance);
 }
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { InputPanel } from './components/InputPanel';
 import { DrawingStage } from './components/DrawingStage';
@@ -7,7 +7,7 @@ import { StepsOverviewGrid } from './components/StepsOverviewGrid';
 import { SavedGalleryModal } from './components/SavedGalleryModal';
 import { SAMPLE_DINOSAUR_STEPS } from './data/presets';
 import { DrawingStep, DrawingTutorial, DrawingPreset } from './types';
-import { Sparkles, Play, Grid, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Play, Grid, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { sanitizeSvg } from './utils/sanitizeSvg';
 
 export default function App() {

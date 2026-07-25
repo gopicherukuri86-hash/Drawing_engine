@@ -1,6 +1,7 @@
+import "dotenv/config";
 import express from "express";
 import path from "path";
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, ThinkingLevel } from "@google/genai";
 import { createServer as createViteServer } from "vite";
 
 async function startServer() {
@@ -95,7 +96,7 @@ Each step introduces ONLY the new shapes for that step. Never repeat shapes from
         config: {
           systemInstruction,
           thinkingConfig: {
-            thinkingLevel: 'high' as any,
+            thinkingLevel: ThinkingLevel.HIGH,
           },
           responseMimeType: "application/json",
           responseSchema: {
