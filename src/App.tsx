@@ -1,223 +1,216 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './components/Header';
 import { InputPanel } from './components/InputPanel';
-import { DrawingStage } from './components/DrawingStage';
-import { DrawAlongCanvas } from './components/DrawAlongCanvas';
+import { VariantPicker } from './components/VariantPicker';
+import { BriefView } from './components/BriefView';
+import { StuckModal } from './components/StuckModal';
 import { StepsOverviewGrid } from './components/StepsOverviewGrid';
 import { SavedGalleryModal } from './components/SavedGalleryModal';
-import { SAMPLE_DINOSAUR_STEPS } from './data/presets';
-import { DrawingStep, DrawingTutorial, DrawingPreset } from './types';
-import { Sparkles, Play, Grid, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { sanitizeSvg } from './utils/sanitizeSvg';
+import { SceneVariant, SceneBrief, Medium, ScenePreset, StuckExchange } from './types';
+import { CheckCircle2, AlertCircle } from 'lucide-react';
 
 export default function App() {
-  const [currentTutorial, setCurrentTutorial] = useState<DrawingTutorial>({
-    id: 'sample-baby-dino',
-    title: 'Cute Baby Dinosaur',
-    subject: 'A cute baby dinosaur standing happily',
-    steps: SAMPLE_DINOSAUR_STEPS,
-    createdAt: new Date().toISOString(),
-    sourceType: 'preset',
-  });
+  const [viewState, setViewState] = useState<'input' | 'variants' | 'brief' | 'reference'>('input');
+  const [currentIdea, setCurrentIdea] = useState<string>('');
+  const [currentMedium, setCurrentMedium] = useState<Medium>('watercolour');
+  const [variants, setVariants] = useState<SceneVariant[] | null>(null);
+  const [currentBrief, setCurrentBrief] = useState<SceneBrief | null>(null);
 
-  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
-  const [viewMode, setViewMode] = useState<'stage' | 'grid'>('stage');
-  const [activeStageTab, setActiveStageTab] = useState<'guide' | 'practice' | 'split'>('split');
-  const [autoPlay, setAutoPlay] = useState<boolean>(false);
-  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
 
-  // Gallery Modal & LocalStorage
-  const [savedTutorials, setSavedTutorials] = useState<DrawingTutorial[]>([]);
+  const [isStuckModalOpen, setIsStuckModalOpen] = useState<boolean>(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState<boolean>(false);
+  const [savedBriefs, setSavedBriefs] = useState<SceneBrief[]>([]);
 
-  // Load saved tutorials from localStorage on mount
+  // Load saved briefs on mount
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('reconstructive_drawing_tutorials');
+      const stored = localStorage.getItem('reconstructive_scene_briefs');
       if (stored) {
-        setSavedTutorials(JSON.parse(stored));
+        setSavedBriefs(JSON.parse(stored));
       }
     } catch (err) {
-      console.error('Error loading saved tutorials:', err);
+      console.error('Error loading saved briefs:', err);
     }
   }, []);
 
-  // Save tutorials array to localStorage
-  const saveTutorialsToStorage = (updated: DrawingTutorial[]) => {
-    setSavedTutorials(updated);
+  const saveBriefsToStorage = (updated: SceneBrief[]) => {
+    setSavedBriefs(updated);
     try {
-      localStorage.setItem('reconstructive_drawing_tutorials', JSON.stringify(updated));
+      localStorage.setItem('reconstructive_scene_briefs', JSON.stringify(updated));
     } catch (err) {
-      console.error('Error storing tutorials:', err);
+      console.error('Error saving briefs to storage:', err);
     }
   };
 
-  const handleStepAutoAdvance = () => {
-    setCurrentStepIndex((prev) => {
-      if (prev >= currentTutorial.steps.length - 1) {
-        setAutoPlay(false);
-        return prev;
-      }
-      return prev + 1;
-    });
-  };
-
-  // Auto-play timer effect (active ONLY when voice is disabled to avoid double advancing)
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (autoPlay && !voiceEnabled && currentTutorial.steps.length > 0) {
-      timer = setInterval(() => {
-        handleStepAutoAdvance();
-      }, 4000); // 4 seconds per step
-    }
-    return () => clearInterval(timer);
-  }, [autoPlay, voiceEnabled, currentTutorial]);
-
-  // Handle generating new tutorial via API
-  const handleGenerate = async (data: {
-    prompt?: string;
-    imageBase64?: string;
-    mimeType?: string;
-    complexity: 'easy' | 'standard' | 'detailed';
+  // Call 1: Generate Composition Variants
+  const handleGenerateVariants = async (data: {
+    idea: string;
+    medium: Medium;
+    referenceImageBase64?: string;
   }) => {
     setIsLoading(true);
     setErrorMessage(null);
-    setAutoPlay(false);
+    setCurrentIdea(data.idea);
+    setCurrentMedium(data.medium);
 
     try {
-      const res = await fetch('/api/generate-drawing', {
+      const res = await fetch('/api/scene-variants', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
 
       const json = await res.json();
-
       if (!res.ok || !json.success) {
-        throw new Error(json.error || 'Failed to generate drawing instructions.');
+        throw new Error(json.error || 'Failed to generate scene variants.');
       }
 
-      const generatedSteps: DrawingStep[] = json.steps;
-
-      if (!generatedSteps || generatedSteps.length === 0) {
-        throw new Error('No valid drawing steps were returned.');
-      }
-
-      const title = data.prompt
-        ? data.prompt.charAt(0).toUpperCase() + data.prompt.slice(1)
-        : 'Deconstructed Photo Drawing';
-
-      const newTut: DrawingTutorial = {
-        id: `tut-${Date.now()}`,
-        title,
-        subject: data.prompt || 'Uploaded Image',
-        steps: generatedSteps,
-        createdAt: new Date().toISOString(),
-        sourceType: data.imageBase64 ? 'image' : 'text',
-        originalImage: data.imageBase64,
-      };
-
-      setCurrentTutorial(newTut);
-      setCurrentStepIndex(0);
-      setViewMode('stage');
-      setSuccessToast(`Drawing guide for "${title}" created successfully! 🎨`);
-      setTimeout(() => setSuccessToast(null), 4000);
+      setVariants(json.variants);
+      setViewState('variants');
     } catch (err: any) {
-      console.error('Generation error:', err);
-      setErrorMessage(err?.message || 'An error occurred while generating the drawing steps.');
+      console.error('Variant generation error:', err);
+      setErrorMessage(err?.message || 'Failed to generate composition variants.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Handle selecting preset
-  const handleSelectPreset = (preset: DrawingPreset) => {
-    if (preset.sampleSteps) {
-      // Use pre-baked steps instantly
-      const newTut: DrawingTutorial = {
-        id: `preset-${preset.id}`,
-        title: preset.title,
-        subject: preset.prompt,
-        steps: preset.sampleSteps,
-        createdAt: new Date().toISOString(),
-        sourceType: 'preset',
-      };
-      setCurrentTutorial(newTut);
-      setCurrentStepIndex(0);
-      setViewMode('stage');
-      setSuccessToast(`Loaded preset: "${preset.title}"`);
-      setTimeout(() => setSuccessToast(null), 3000);
-    } else {
-      // Generate via API using preset prompt
-      handleGenerate({
-        prompt: preset.prompt,
-        complexity: 'standard',
+  // Handle Preset Seed Selection
+  const handleSelectPreset = (preset: ScenePreset) => {
+    handleGenerateVariants({
+      idea: preset.prompt,
+      medium: 'watercolour',
+    });
+  };
+
+  // Call 2: Select Variant and Generate Full Brief
+  const handleSelectVariant = async (variant: SceneVariant) => {
+    setIsLoading(true);
+    setErrorMessage(null);
+
+    try {
+      const res = await fetch('/api/scene-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          variant,
+          medium: currentMedium,
+        }),
       });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to generate artist brief.');
+      }
+
+      const brief: SceneBrief = json.brief;
+      setCurrentBrief(brief);
+      setViewState('brief');
+    } catch (err: any) {
+      console.error('Brief generation error:', err);
+      setErrorMessage(err?.message || 'Failed to generate full artist brief.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Save current tutorial to gallery
-  const handleSaveCurrent = () => {
-    const isAlreadySaved = savedTutorials.some((t) => t.id === currentTutorial.id);
-    if (isAlreadySaved) return;
+  // Call 3: Stuck Diagnostic
+  const handleSubmitStuck = async (data: { problem: string; wipImageBase64?: string }) => {
+    if (!currentBrief) return null;
 
-    const updated = [currentTutorial, ...savedTutorials];
-    saveTutorialsToStorage(updated);
-    setSuccessToast(`Saved "${currentTutorial.title}" to your gallery! 📚`);
+    try {
+      const res = await fetch('/api/stuck', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          brief: currentBrief,
+          problem: data.problem,
+          wipImageBase64: data.wipImageBase64,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || 'Failed to diagnose painting issue.');
+      }
+
+      const exchange: StuckExchange = json.exchange;
+
+      // Update current brief with new exchange
+      const updatedBrief: SceneBrief = {
+        ...currentBrief,
+        stuck_exchanges: [...(currentBrief.stuck_exchanges || []), exchange],
+      };
+      setCurrentBrief(updatedBrief);
+
+      // If already in gallery, update gallery record as well
+      const inGallery = savedBriefs.some((b) => b.id === updatedBrief.id);
+      if (inGallery) {
+        const updatedGallery = savedBriefs.map((b) => (b.id === updatedBrief.id ? updatedBrief : b));
+        saveBriefsToStorage(updatedGallery);
+      }
+
+      return exchange;
+    } catch (err: any) {
+      console.error('Stuck API error:', err);
+      setErrorMessage(err?.message || 'Failed to process diagnostic query.');
+      return null;
+    }
+  };
+
+  // Save brief
+  const handleSaveBrief = () => {
+    if (!currentBrief) return;
+    const exists = savedBriefs.some((b) => b.id === currentBrief.id);
+    if (exists) return;
+
+    const updated = [currentBrief, ...savedBriefs];
+    saveBriefsToStorage(updated);
+    setSuccessToast(`Saved "${currentBrief.variant.title}" to gallery.`);
     setTimeout(() => setSuccessToast(null), 3000);
   };
 
-  const handleDeleteTutorial = (id: string) => {
-    const updated = savedTutorials.filter((t) => t.id !== id);
-    saveTutorialsToStorage(updated);
+  const handleDeleteBrief = (id: string) => {
+    const updated = savedBriefs.filter((b) => b.id !== id);
+    saveBriefsToStorage(updated);
   };
 
-  const isCurrentSaved = savedTutorials.some((t) => t.id === currentTutorial.id);
-
-  // Accumulated SVGs up to currentStepIndex for Draw Along Pad overlay
-  const currentAccumulatedSvgCodes = sanitizeSvg(
-    currentTutorial.steps
-      .slice(0, currentStepIndex + 1)
-      .map((s) => s.svg_code)
-      .join('\n')
-  );
+  const isBriefSaved = currentBrief ? savedBriefs.some((b) => b.id === currentBrief.id) : false;
 
   return (
-    <div className="min-h-screen text-slate-800 flex flex-col font-sans relative overflow-x-hidden selection:bg-indigo-500 selection:text-white">
-      {/* Animated Ambient Background Spheres for Frosted Glass Depth */}
-      <div className="fixed top-[-10%] left-[-5%] w-[450px] h-[450px] bg-sky-300 rounded-full mix-blend-multiply filter blur-3xl opacity-35 pointer-events-none z-0" />
-      <div className="fixed bottom-[-10%] right-[-5%] w-[550px] h-[550px] bg-purple-300 rounded-full mix-blend-multiply filter blur-3xl opacity-35 pointer-events-none z-0" />
-      <div className="fixed top-[30%] right-[10%] w-[350px] h-[350px] bg-amber-200 rounded-full mix-blend-multiply filter blur-3xl opacity-35 pointer-events-none z-0" />
+    <div className="min-h-screen text-slate-800 flex flex-col font-sans relative overflow-x-hidden bg-slate-100 selection:bg-indigo-600 selection:text-white">
+      {/* Ambient background depth gradients */}
+      <div className="fixed top-[-10%] left-[-5%] w-[450px] h-[450px] bg-sky-200/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none z-0" />
+      <div className="fixed bottom-[-10%] right-[-5%] w-[550px] h-[550px] bg-purple-200/50 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none z-0" />
+      <div className="fixed top-[30%] right-[10%] w-[350px] h-[350px] bg-amber-100/60 rounded-full mix-blend-multiply filter blur-3xl pointer-events-none z-0" />
 
       {/* Header */}
       <Header
         onOpenGallery={() => setIsGalleryOpen(true)}
-        savedCount={savedTutorials.length}
-        onNewTutorial={() => {
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
-        onSaveCurrent={handleSaveCurrent}
-        canSave={currentTutorial.steps.length > 0}
-        isSaved={isCurrentSaved}
+        savedCount={savedBriefs.length}
+        onNewTutorial={() => setViewState('input')}
+        onSaveCurrent={handleSaveBrief}
+        canSave={!!currentBrief}
+        isSaved={isBriefSaved}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8 relative z-10">
-        {/* Toast Alerts */}
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6 relative z-10">
+        {/* Toasts */}
         {successToast && (
-          <div className="bg-emerald-500/90 backdrop-blur-md text-white px-6 py-3.5 rounded-2xl shadow-xl border border-white/40 flex items-center gap-2 text-sm font-bold animate-fade-in">
+          <div className="bg-emerald-600 text-white px-6 py-3.5 rounded-2xl shadow-xl flex items-center gap-2 text-sm font-bold animate-fade-in">
             <CheckCircle2 className="w-5 h-5" />
             {successToast}
           </div>
         )}
 
         {errorMessage && (
-          <div className="bg-rose-500/90 backdrop-blur-md text-white px-6 py-3.5 rounded-2xl shadow-xl border border-white/40 flex items-center justify-between gap-3 text-sm font-bold animate-fade-in">
+          <div className="bg-rose-600 text-white px-6 py-3.5 rounded-2xl shadow-xl flex items-center justify-between gap-3 text-sm font-bold animate-fade-in">
             <div className="flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <AlertCircle className="w-5 h-5 shrink-0" />
               <span>{errorMessage}</span>
             </div>
             <button
@@ -229,166 +222,91 @@ export default function App() {
           </div>
         )}
 
-        {/* Input Panel (New Idea / Photo / Preset) */}
-        <InputPanel
-          onGenerate={handleGenerate}
-          onSelectPreset={handleSelectPreset}
-          isLoading={isLoading}
-        />
-
-        {/* View Mode Bar */}
-        <div className="glass-panel p-2.5 rounded-[24px] shadow-lg flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode('stage')}
-              className={`px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 ${
-                viewMode === 'stage'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                  : 'bg-white/40 text-slate-700 hover:bg-white/70 border border-white/50'
-              }`}
-            >
-              <Play className="w-4 h-4 fill-current" />
-              Interactive Step Stage
-            </button>
-
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold flex items-center gap-2 transition active:scale-95 ${
-                viewMode === 'grid'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                  : 'bg-white/40 text-slate-700 hover:bg-white/70 border border-white/50'
-              }`}
-            >
-              <Grid className="w-4 h-4" />
-              All Steps Overview
-            </button>
-          </div>
-
-          {/* Sub-tabs for Stage View */}
-          {viewMode === 'stage' && (
-            <div className="flex items-center gap-1.5 bg-white/40 border border-white/50 p-1.5 rounded-full backdrop-blur-md">
-              <button
-                onClick={() => setActiveStageTab('split')}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
-                  activeStageTab === 'split'
-                    ? 'bg-white text-indigo-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Side-by-Side
-              </button>
-              <button
-                onClick={() => setActiveStageTab('guide')}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
-                  activeStageTab === 'guide'
-                    ? 'bg-white text-indigo-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Guide Only
-              </button>
-              <button
-                onClick={() => setActiveStageTab('practice')}
-                className={`px-4 py-1.5 rounded-full text-xs font-bold transition ${
-                  activeStageTab === 'practice'
-                    ? 'bg-white text-indigo-700 shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                Draw Pad
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* View Mode 1: Interactive Stage & Practice Pad */}
-        {viewMode === 'stage' && (
-          <div className="w-full">
-            {activeStageTab === 'split' ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
-                <DrawingStage
-                  steps={currentTutorial.steps}
-                  currentStepIndex={currentStepIndex}
-                  onStepChange={(idx) => setCurrentStepIndex(idx)}
-                  title={currentTutorial.title}
-                  autoPlay={autoPlay}
-                  onToggleAutoPlay={() => setAutoPlay(!autoPlay)}
-                  voiceEnabled={voiceEnabled}
-                  onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
-                  onAutoAdvance={handleStepAutoAdvance}
-                />
-
-                <DrawAlongCanvas
-                  tutorialId={currentTutorial.id}
-                  guideSvgContent={
-                    <g dangerouslySetInnerHTML={{ __html: currentAccumulatedSvgCodes }} />
-                  }
-                  showGuideOverlay={true}
-                />
-              </div>
-            ) : activeStageTab === 'guide' ? (
-              <div className="max-w-2xl mx-auto w-full">
-                <DrawingStage
-                  steps={currentTutorial.steps}
-                  currentStepIndex={currentStepIndex}
-                  onStepChange={(idx) => setCurrentStepIndex(idx)}
-                  title={currentTutorial.title}
-                  autoPlay={autoPlay}
-                  onToggleAutoPlay={() => setAutoPlay(!autoPlay)}
-                  voiceEnabled={voiceEnabled}
-                  onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
-                  onAutoAdvance={handleStepAutoAdvance}
-                />
-              </div>
-            ) : (
-              <div className="max-w-2xl mx-auto w-full">
-                <DrawAlongCanvas
-                  tutorialId={currentTutorial.id}
-                  guideSvgContent={
-                    <g dangerouslySetInnerHTML={{ __html: currentAccumulatedSvgCodes }} />
-                  }
-                  showGuideOverlay={true}
-                />
-              </div>
-            )}
-          </div>
+        {/* View State 1: Input Panel */}
+        {viewState === 'input' && (
+          <InputPanel
+            onGenerateVariants={handleGenerateVariants}
+            onSelectPreset={handleSelectPreset}
+            isLoading={isLoading}
+          />
         )}
 
-        {/* View Mode 2: Printable Steps Grid */}
-        {viewMode === 'grid' && (
-          <StepsOverviewGrid
-            steps={currentTutorial.steps}
-            title={currentTutorial.title}
-            onSelectStep={(idx) => {
-              setCurrentStepIndex(idx);
-              setViewMode('stage');
-            }}
+        {/* View State 2: Variant Picker */}
+        {viewState === 'variants' && variants && (
+          <VariantPicker
+            variants={variants}
+            ideaPrompt={currentIdea}
+            medium={currentMedium}
+            onSelectVariant={handleSelectVariant}
+            onBackToInput={() => setViewState('input')}
+            isLoading={isLoading}
           />
+        )}
+
+        {/* View State 3: Full Brief View */}
+        {viewState === 'brief' && currentBrief && (
+          <BriefView
+            brief={currentBrief}
+            onOpenStuckModal={() => setIsStuckModalOpen(true)}
+            onPrintReference={() => setViewState('reference')}
+            onNewScene={() => setViewState('input')}
+            onSaveBrief={handleSaveBrief}
+            isSaved={isBriefSaved}
+          />
+        )}
+
+        {/* View State 4: Printable Reference Sheet */}
+        {viewState === 'reference' && (
+          <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between print:hidden">
+              <button
+                onClick={() => setViewState('brief')}
+                className="px-4 py-2 bg-slate-900 text-white rounded-full text-xs font-bold"
+              >
+                Back to Interactive Brief
+              </button>
+            </div>
+
+            <StepsOverviewGrid
+              brief={currentBrief || undefined}
+              steps={currentBrief?.composition_guide}
+              title={currentBrief?.variant?.title}
+            />
+          </div>
         )}
       </main>
 
       {/* Footer */}
-      <footer className="w-full bg-white/20 backdrop-blur-md border-t border-white/30 mt-12 py-6 px-4 text-center text-xs text-slate-700 relative z-10">
+      <footer className="w-full bg-white/40 backdrop-blur-md border-t border-slate-200/80 mt-12 py-6 px-4 text-center text-xs text-slate-600 relative z-10 print:hidden">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 font-bold">
-            <Sparkles className="w-4 h-4 text-indigo-600" />
-            <span>Reconstructive Drawing Engine • Frosted Glass Kids Studio</span>
+          <div className="flex items-center gap-2 font-bold text-slate-800">
+            <span>Reconstructive Scene Studio</span>
+            <span>• Character in Environment Reference Engine</span>
           </div>
-          <p className="font-semibold text-slate-600">© 2026 Google AI Studio Build Applet</p>
+          <p className="font-semibold">© 2026 Google AI Studio Build Applet</p>
         </div>
       </footer>
 
-      {/* Gallery Modal */}
+      {/* Stuck Problem Diagnosis Modal */}
+      {isStuckModalOpen && currentBrief && (
+        <StuckModal
+          brief={currentBrief}
+          medium={currentBrief.medium}
+          onClose={() => setIsStuckModalOpen(false)}
+          onSubmitStuck={handleSubmitStuck}
+        />
+      )}
+
+      {/* Saved Gallery Modal */}
       <SavedGalleryModal
         isOpen={isGalleryOpen}
         onClose={() => setIsGalleryOpen(false)}
-        savedTutorials={savedTutorials}
-        onSelectTutorial={(tut) => {
-          setCurrentTutorial(tut);
-          setCurrentStepIndex(0);
-          setViewMode('stage');
+        savedBriefs={savedBriefs}
+        onSelectBrief={(brief) => {
+          setCurrentBrief(brief);
+          setViewState('brief');
         }}
-        onDeleteTutorial={handleDeleteTutorial}
+        onDeleteBrief={handleDeleteBrief}
       />
     </div>
   );

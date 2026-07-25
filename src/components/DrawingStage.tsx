@@ -103,6 +103,20 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
             }
           }
 
+          .layer-construction > * {
+            stroke: #64748b !important;
+            stroke-dasharray: 6 4 !important;
+            stroke-width: 3.5px !important;
+          }
+          .layer-outline > * {
+            stroke: #1e293b !important;
+            stroke-width: 6px !important;
+          }
+          .layer-detail > * {
+            stroke: #0f172a !important;
+            stroke-width: 4px !important;
+          }
+
           .anim-new-stroke > * {
             stroke-dasharray: 1;
             stroke-dashoffset: 1;
@@ -133,7 +147,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
         {steps.slice(0, currentStepIndex).map((step, idx) => (
           <g
             key={`prev-step-${step.step_number}-${idx}`}
-            className="previous-stroke"
+            className={`previous-stroke layer-${step.layer || 'outline'}`}
             dangerouslySetInnerHTML={{ __html: withPathLength(step.svg_code) }}
           />
         ))}
@@ -142,7 +156,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
         {currentStep && (
           <g
             key={`active-step-${currentStep.step_number}-${animationKey}`}
-            className={`anim-new-stroke ${highlightNewStroke ? 'highlight-stroke' : ''}`}
+            className={`anim-new-stroke layer-${currentStep.layer || 'outline'} ${highlightNewStroke ? 'highlight-stroke' : ''}`}
             dangerouslySetInnerHTML={{ __html: withPathLength(currentStep.svg_code) }}
           />
         )}
@@ -197,7 +211,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
               className={`p-2 rounded-full transition ${
                 voiceEnabled ? 'bg-emerald-500 text-white shadow-sm' : 'bg-white/40 text-slate-400 border border-white/50'
               }`}
-              title={voiceEnabled ? 'Teacher Voice Active' : 'Voice Muted'}
+              title={voiceEnabled ? 'Instructor Voice Active' : 'Voice Muted'}
             >
               {voiceEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
@@ -235,7 +249,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
         </div>
         <div className="flex-1">
           <span className="text-xs font-black text-amber-950 uppercase tracking-wider block mb-0.5">
-            Art Teacher Instructions
+            Instructions
           </span>
           <p className="text-slate-800 font-bold text-sm md:text-base leading-relaxed">
             {currentStep?.instruction || 'Loading step instructions...'}

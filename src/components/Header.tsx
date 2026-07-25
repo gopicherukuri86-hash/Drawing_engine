@@ -23,8 +23,8 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
         {/* Logo and Tagline */}
         <div className="flex items-center gap-3.5 cursor-pointer" onClick={onNewTutorial}>
-          <div className="w-12 h-12 bg-white/50 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/60 shadow-sm text-amber-500 font-extrabold text-2xl">
-            🎨
+          <div className="w-12 h-12 bg-white/50 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/60 shadow-sm text-indigo-600">
+            <Palette className="w-6 h-6" />
           </div>
 
           <div>
@@ -32,13 +32,13 @@ export const Header: React.FC<HeaderProps> = ({
               <h1 className="font-extrabold text-slate-800 text-lg sm:text-xl tracking-tight">
                 Reconstructive Drawing Engine
               </h1>
-              <span className="hidden md:inline-flex items-center gap-1 bg-yellow-400/90 text-yellow-950 text-[11px] font-black px-2.5 py-0.5 rounded-full border border-white/50 shadow-sm">
-                <Sparkles className="w-3 h-3 text-yellow-950" />
-                Age 5+
+              <span className="hidden md:inline-flex items-center gap-1 bg-indigo-100 text-indigo-900 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-indigo-200 shadow-sm">
+                <Sparkles className="w-3 h-3 text-indigo-600" />
+                Artist Studio
               </span>
             </div>
             <p className="text-xs font-semibold text-slate-600 hidden sm:block">
-              Deconstruct photos & ideas into simple kid-friendly shapes
+              Deconstruct reference images and subjects into structured drawing steps
             </p>
           </div>
         </div>

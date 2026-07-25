@@ -1,6 +1,6 @@
 {
   "name": "Reconstructive Drawing Engine",
-  "description": "An AI-powered art teacher that deconstructs any photo, scribble, or idea into simple step-by-step geometric shapes with animated SVG tutorials for children.",
+  "description": "An AI-powered art instructor that deconstructs any photo, sketch, or subject into structured step-by-step drawing tutorials for intermediate artists.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

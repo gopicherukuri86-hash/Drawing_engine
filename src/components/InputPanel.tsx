@@ -1,60 +1,46 @@
 import React, { useState, useRef } from 'react';
-import { PRESETS } from '../data/presets';
-import { DrawingPreset } from '../types';
+import { SCENE_PRESETS } from '../data/presets';
+import { Medium, ScenePreset } from '../types';
 import {
   Sparkles,
   Upload,
   Image as ImageIcon,
   X,
-  Footprints,
-  Ship,
-  Bot,
-  Rocket,
-  Car,
-  Wand2,
+  Compass,
+  Sun,
   Feather,
-  Wand,
-  Palette,
+  Flame,
+  Eye,
+  Activity,
+  User,
   Lightbulb,
 } from 'lucide-react';
 
 interface InputPanelProps {
-  onGenerate: (data: { prompt?: string; imageBase64?: string; mimeType?: string; complexity: 'easy' | 'standard' | 'detailed' }) => void;
-  onSelectPreset: (preset: DrawingPreset) => void;
+  onGenerateVariants: (data: { idea: string; medium: Medium; referenceImageBase64?: string }) => void;
+  onSelectPreset: (preset: ScenePreset) => void;
   isLoading: boolean;
 }
 
 const ICON_MAP: Record<string, React.ReactNode> = {
-  Footprints: <Footprints className="w-4 h-4 text-emerald-500" />,
-  Ship: <Ship className="w-4 h-4 text-sky-500" />,
-  Bot: <Bot className="w-4 h-4 text-purple-500" />,
   Sparkles: <Sparkles className="w-4 h-4 text-amber-500" />,
-  Rocket: <Rocket className="w-4 h-4 text-rose-500" />,
-  Car: <Car className="w-4 h-4 text-blue-500" />,
-  Wand2: <Wand2 className="w-4 h-4 text-pink-500" />,
-  Feather: <Feather className="w-4 h-4 text-indigo-500" />,
+  Feather: <Feather className="w-4 h-4 text-purple-500" />,
+  Flame: <Flame className="w-4 h-4 text-orange-500" />,
+  Compass: <Compass className="w-4 h-4 text-rose-500" />,
+  Eye: <Eye className="w-4 h-4 text-sky-500" />,
+  Sun: <Sun className="w-4 h-4 text-yellow-500" />,
+  Activity: <Activity className="w-4 h-4 text-emerald-500" />,
+  User: <User className="w-4 h-4 text-indigo-500" />,
 };
 
-const SUGGESTIONS = [
-  'A flying pirate ship',
-  'A cute baby dinosaur',
-  'A friendly space alien',
-  'A smiling race car',
-  'A magic castle',
-  'A playful dolphin',
-  'A cute cat wearing a crown',
-];
-
 export const InputPanel: React.FC<InputPanelProps> = ({
-  onGenerate,
+  onGenerateVariants,
   onSelectPreset,
   isLoading,
 }) => {
-  const [activeTab, setActiveTab] = useState<'text' | 'image' | 'preset'>('text');
-  const [promptText, setPromptText] = useState('');
+  const [ideaText, setIdeaText] = useState('');
+  const [medium, setMedium] = useState<Medium>('watercolour');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
-  const [uploadedMimeType, setUploadedMimeType] = useState<string>('image/png');
-  const [complexity, setComplexity] = useState<'easy' | 'standard' | 'detailed'>('standard');
   const [isDragging, setIsDragging] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -68,10 +54,9 @@ export const InputPanel: React.FC<InputPanelProps> = ({
 
   const processFile = (file: File) => {
     if (!file.type.startsWith('image/')) {
-      alert('Please select an image file (PNG, JPG, WEBP, etc.)');
+      alert('Please select an image file (PNG, JPG, WEBP)');
       return;
     }
-    setUploadedMimeType(file.type);
     const reader = new FileReader();
     reader.onload = () => {
       setUploadedImage(reader.result as string);
@@ -90,232 +75,176 @@ export const InputPanel: React.FC<InputPanelProps> = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (activeTab === 'image' && !uploadedImage) {
-      alert('Please upload an image first, or enter a text idea!');
-      return;
-    }
-    if (activeTab === 'text' && !promptText.trim()) {
-      alert('Please enter a drawing idea or select a preset!');
+    if (!ideaText.trim() && !uploadedImage) {
+      alert('Please enter an idea or select a scene starter');
       return;
     }
 
-    onGenerate({
-      prompt: activeTab === 'text' ? promptText.trim() : undefined,
-      imageBase64: activeTab === 'image' ? (uploadedImage || undefined) : undefined,
-      mimeType: uploadedMimeType,
-      complexity,
+    onGenerateVariants({
+      idea: ideaText.trim(),
+      medium,
+      referenceImageBase64: uploadedImage || undefined,
     });
   };
 
   return (
-    <div className="w-full glass-panel rounded-[32px] shadow-xl overflow-hidden">
-      {/* Tab Switcher Header */}
-      <div className="bg-white/30 backdrop-blur-md p-3 border-b border-white/50 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('text')}
-          className={`flex-1 py-2.5 px-3 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
-            activeTab === 'text'
-              ? 'bg-amber-400 text-amber-950 shadow-md shadow-amber-200/50 border border-white/60'
-              : 'bg-white/40 text-slate-700 hover:bg-white/70 border border-white/40'
-          }`}
-        >
-          <Lightbulb className="w-4 h-4" />
-          Text Idea
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('image')}
-          className={`flex-1 py-2.5 px-3 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
-            activeTab === 'image'
-              ? 'bg-sky-500 text-white shadow-md shadow-sky-200/50 border border-white/60'
-              : 'bg-white/40 text-slate-700 hover:bg-white/70 border border-white/40'
-          }`}
-        >
-          <Upload className="w-4 h-4" />
-          Photo / Scribble
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('preset')}
-          className={`flex-1 py-2.5 px-3 rounded-full font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
-            activeTab === 'preset'
-              ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200/50 border border-white/60'
-              : 'bg-white/40 text-slate-700 hover:bg-white/70 border border-white/40'
-          }`}
-        >
-          <Palette className="w-4 h-4" />
-          1-Tap Presets
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} className="p-6 flex flex-col gap-5">
-        {/* TAB 1: Text Prompt Input */}
-        {activeTab === 'text' && (
-          <div className="flex flex-col gap-3">
-            <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-              What do you want to draw today?
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                value={promptText}
-                onChange={(e) => setPromptText(e.target.value)}
-                placeholder="e.g. 'A flying pirate ship' or 'A baby dinosaur'..."
-                className="w-full px-5 py-4 pl-12 rounded-2xl bg-white/60 backdrop-blur-md border border-white/70 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:bg-white font-medium text-slate-800 text-sm md:text-base shadow-inner transition"
-              />
-              <Wand className="w-5 h-5 text-amber-500 absolute left-4 top-1/2 -translate-y-1/2" />
-            </div>
-
-            {/* Idea Chips */}
-            <div className="flex flex-col gap-1.5 pt-1">
-              <span className="text-[11px] font-bold text-slate-600">Quick inspiration ideas:</span>
-              <div className="flex items-center flex-wrap gap-1.5">
-                {SUGGESTIONS.map((sug) => (
-                  <button
-                    key={sug}
-                    type="button"
-                    onClick={() => setPromptText(sug)}
-                    className="px-3 py-1 bg-white/50 hover:bg-white/80 text-amber-950 border border-white/60 rounded-full text-xs font-semibold shadow-sm transition active:scale-95"
-                  >
-                    ✨ {sug}
-                  </button>
-                ))}
-              </div>
-            </div>
+    <div className="w-full max-w-4xl mx-auto glass-panel rounded-[32px] shadow-xl overflow-hidden p-6 md:p-8 border border-white/70 animate-fade-in">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+        {/* Title */}
+        <div>
+          <div className="flex items-center gap-2 text-indigo-700 font-extrabold text-xs uppercase tracking-wider mb-1">
+            <Sparkles className="w-4 h-4" />
+            <span>Character in Environment Studio</span>
           </div>
-        )}
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">
+            Describe a Painting Scene
+          </h2>
+          <p className="text-xs md:text-sm font-semibold text-slate-600 mt-1">
+            Enter a creature and environment idea. The engine generates 3-4 compositional variants to choose from.
+          </p>
+        </div>
 
-        {/* TAB 2: Image Upload */}
-        {activeTab === 'image' && (
-          <div className="flex flex-col gap-3">
-            <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-              Upload a Toy, Photo, or Rough Scribble to Deconstruct
-            </label>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileChange}
-              className="hidden"
-            />
-
-            {!uploadedImage ? (
-              <div
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-3xl p-8 flex flex-col items-center justify-center text-center cursor-pointer transition ${
-                  isDragging
-                    ? 'border-sky-500 bg-sky-100/50'
-                    : 'border-white/80 hover:border-sky-400 bg-white/30 hover:bg-white/50 backdrop-blur-md'
+        {/* Medium Selection Row */}
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+            Painting Medium:
+          </label>
+          <div className="grid grid-cols-3 gap-3">
+            {(['watercolour', 'soft pastel', 'either'] as Medium[]).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMedium(m)}
+                className={`py-2.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition border text-center ${
+                  medium === m
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-md'
+                    : 'bg-white/60 hover:bg-white text-slate-700 border-slate-300'
                 }`}
               >
-                <div className="p-3.5 bg-sky-500/20 text-sky-700 rounded-2xl mb-2">
-                  <ImageIcon className="w-7 h-7" />
-                </div>
-                <p className="font-extrabold text-slate-800 text-sm">
-                  Click or Drop a Photo Here
-                </p>
-                <p className="text-xs font-medium text-slate-600 mt-1 max-w-xs">
-                  Upload a photo of a stuffed toy, household object, or kid scribble to decompose it into basic shapes!
-                </p>
-              </div>
-            ) : (
-              <div className="relative w-full aspect-video max-h-52 bg-white/40 backdrop-blur-md rounded-2xl overflow-hidden border border-white/60 flex items-center justify-center group shadow-md">
-                <img
-                  src={uploadedImage}
-                  alt="Uploaded target"
-                  className="w-full h-full object-contain"
-                />
-                <button
-                  type="button"
-                  onClick={() => setUploadedImage(null)}
-                  className="absolute top-3 right-3 p-2 bg-rose-600 text-white rounded-full shadow-lg hover:bg-rose-700 transition"
-                  title="Remove image"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            )}
+                {m}
+              </button>
+            ))}
           </div>
-        )}
+        </div>
 
-        {/* TAB 3: Presets */}
-        {activeTab === 'preset' && (
-          <div className="flex flex-col gap-3">
+        {/* Text Input Field */}
+        <div className="flex flex-col gap-2">
+          <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+            Scene Idea:
+          </label>
+          <div className="relative">
+            <input
+              type="text"
+              value={ideaText}
+              onChange={(e) => setIdeaText(e.target.value)}
+              placeholder="e.g. 'Dragon sleeping on coins' or 'Fox under giant mushroom after rain'..."
+              className="w-full px-5 py-4 pl-12 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900 text-sm md:text-base shadow-inner"
+            />
+            <Lightbulb className="w-5 h-5 text-amber-500 absolute left-4 top-1/2 -translate-y-1/2" />
+          </div>
+        </div>
+
+        {/* Optional Reference Image Upload */}
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center justify-between">
             <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-              Choose a Ready-Made Tutorial
+              Optional Reference Photo:
             </label>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-64 overflow-y-auto pr-1">
-              {PRESETS.map((preset) => (
-                <button
-                  key={preset.id}
-                  type="button"
-                  onClick={() => onSelectPreset(preset)}
-                  className="p-3.5 rounded-2xl border border-white/60 hover:border-indigo-400 bg-white/40 hover:bg-white/70 backdrop-blur-md text-left transition flex items-start gap-3 group shadow-sm active:scale-95"
-                >
-                  <div className="p-2.5 rounded-xl bg-white shadow-sm border border-slate-100 group-hover:scale-105 transition">
-                    {ICON_MAP[preset.iconName] || <Sparkles className="w-4 h-4 text-indigo-500" />}
-                  </div>
-                  <div>
-                    <h4 className="font-extrabold text-slate-800 text-xs sm:text-sm group-hover:text-indigo-700">
-                      {preset.title}
-                    </h4>
-                    <p className="text-[11px] font-medium text-slate-600 line-clamp-1 mt-0.5">
-                      {preset.description}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
+            <span className="text-[11px] font-medium text-slate-500">
+              Real animals, bark, water, or foliage reference
+            </span>
           </div>
-        )}
 
-        {/* Step Complexity & Main Action Row */}
-        {activeTab !== 'preset' && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-3 border-t border-white/40">
-            {/* Complexity selector */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <span className="text-xs font-extrabold text-slate-700 whitespace-nowrap">Steps:</span>
-              <select
-                value={complexity}
-                onChange={(e) => setComplexity(e.target.value as any)}
-                className="px-4 py-2 bg-white/50 backdrop-blur-md border border-white/60 rounded-full font-bold text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-400"
-              >
-                <option value="easy">Easy (2-3 Basic Steps)</option>
-                <option value="standard">Standard (4-6 Shapes)</option>
-                <option value="detailed">Detailed (6-8 Shapes)</option>
-              </select>
-            </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+          />
 
-            {/* Action Button */}
-            <button
-              type="submit"
-              disabled={isLoading}
-              className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-gradient-to-r from-amber-500 via-orange-500 to-indigo-600 hover:from-amber-600 hover:to-indigo-700 text-white font-extrabold text-sm md:text-base flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 hover:shadow-xl transition active:scale-95 disabled:opacity-50"
+          {!uploadedImage ? (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsDragging(true);
+              }}
+              onDragLeave={() => setIsDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+              className={`border-2 border-dashed rounded-2xl p-5 flex items-center justify-center gap-3 cursor-pointer transition ${
+                isDragging
+                  ? 'border-indigo-500 bg-indigo-50'
+                  : 'border-slate-300 hover:border-indigo-400 bg-white/40 hover:bg-white/70'
+              }`}
             >
-              {isLoading ? (
-                <>
-                  <Sparkles className="w-5 h-5 animate-spin" />
-                  Deconstructing Idea...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-5 h-5" />
-                  Deconstruct into Drawing Steps 🎨
-                </>
-              )}
-            </button>
+              <ImageIcon className="w-5 h-5 text-slate-500" />
+              <span className="text-xs font-bold text-slate-700">
+                Click or drop a reference photo here
+              </span>
+            </div>
+          ) : (
+            <div className="relative w-full h-32 bg-white/60 rounded-2xl overflow-hidden border border-slate-300 flex items-center justify-center shadow-inner">
+              <img src={uploadedImage} alt="Reference" className="w-full h-full object-contain" />
+              <button
+                type="button"
+                onClick={() => setUploadedImage(null)}
+                className="absolute top-2 right-2 p-1.5 bg-rose-600 text-white rounded-full hover:bg-rose-700 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Scene Seed Starters */}
+        <div className="flex flex-col gap-2 pt-2 border-t border-slate-200">
+          <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
+            Or Choose a Scene Seed Starter:
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+            {SCENE_PRESETS.map((preset) => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  setIdeaText(preset.prompt);
+                  onSelectPreset(preset);
+                }}
+                className="p-3 rounded-2xl border border-slate-200/80 hover:border-indigo-400 bg-white/70 hover:bg-white text-left transition flex items-center gap-2.5 group shadow-sm active:scale-95"
+              >
+                <div className="p-2 rounded-xl bg-slate-100 group-hover:bg-indigo-50 transition shrink-0">
+                  {ICON_MAP[preset.iconName] || <Sparkles className="w-4 h-4 text-indigo-500" />}
+                </div>
+                <div className="truncate">
+                  <h4 className="font-extrabold text-slate-900 text-xs truncate">
+                    {preset.title}
+                  </h4>
+                  <p className="text-[10px] text-slate-500 truncate">
+                    {preset.description}
+                  </p>
+                </div>
+              </button>
+            ))}
           </div>
-        )}
+        </div>
+
+        {/* Generate Action Button */}
+        <button
+          type="submit"
+          disabled={isLoading || (!ideaText.trim() && !uploadedImage)}
+          className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2 mt-2"
+        >
+          {isLoading ? (
+            <span>Generating 3-4 Composition Variants...</span>
+          ) : (
+            <>
+              <Compass className="w-5 h-5" />
+              Explore Composition Variants
+            </>
+          )}
+        </button>
       </form>
     </div>
   );

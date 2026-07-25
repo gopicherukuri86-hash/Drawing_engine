@@ -8,21 +8,21 @@ interface DrawAlongCanvasProps {
 }
 
 const COLOR_PALETTE = [
-  { name: 'Crayon Black', value: '#1e293b' },
-  { name: 'Cherry Red', value: '#ef4444' },
+  { name: 'Graphite Black', value: '#1e293b' },
+  { name: 'Cadmium Red', value: '#ef4444' },
   { name: 'Vibrant Orange', value: '#f97316' },
-  { name: 'Sun Yellow', value: '#eab308' },
-  { name: 'Grass Green', value: '#22c55e' },
-  { name: 'Ocean Blue', value: '#3b82f6' },
-  { name: 'Royal Purple', value: '#a855f7' },
-  { name: 'Bubblegum Pink', value: '#ec4899' },
-  { name: 'Soft Brown', value: '#78350f' },
+  { name: 'Lemon Yellow', value: '#eab308' },
+  { name: 'Viridian Green', value: '#22c55e' },
+  { name: 'Cobalt Blue', value: '#3b82f6' },
+  { name: 'Deep Purple', value: '#a855f7' },
+  { name: 'Magenta Pink', value: '#ec4899' },
+  { name: 'Burnt Sienna', value: '#78350f' },
 ];
 
 const STROKE_SIZES = [
   { label: 'Fine', size: 4 },
   { label: 'Medium', size: 8 },
-  { label: 'Bold Crayon', size: 14 },
+  { label: 'Heavy', size: 14 },
 ];
 
 export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
@@ -186,9 +186,9 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
       <div className="w-full bg-white/30 backdrop-blur-md px-6 py-4 border-b border-white/50 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <Pencil className="w-5 h-5 text-purple-600" />
-          <h3 className="font-extrabold text-slate-800 text-base">Draw Along Pad</h3>
+          <h3 className="font-extrabold text-slate-800 text-base">Sketch Pad</h3>
           <span className="bg-purple-100/80 text-purple-800 text-xs font-black px-3 py-1 rounded-full border border-white/50 shadow-sm">
-            Kids Practice Pad
+            Practice Pad
           </span>
         </div>
 

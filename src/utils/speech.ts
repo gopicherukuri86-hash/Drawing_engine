@@ -1,4 +1,4 @@
-// Web Speech API wrapper for Kid Art Teacher voice narration
+// Web Speech API wrapper for Art Instructor voice narration
 
 let currentUtteranceId = 0;
 let cachedVoice: SpeechSynthesisVoice | null = null;
@@ -59,8 +59,8 @@ export function speakInstruction(text: string, onEnd?: () => void) {
     utterance.voice = cachedVoice;
   }
 
-  // Pitch and rate adjusted for enthusiastic, warm teacher tone
-  utterance.pitch = 1.25;
+  // Pitch and rate set for a calm, clear technical instructor tone
+  utterance.pitch = 1.0;
   utterance.rate = 0.95;
 
   utterance.onend = () => {
