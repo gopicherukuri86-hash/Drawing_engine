@@ -39,6 +39,7 @@ export interface SceneVariant {
   aspectRatio?: string;
   difficulty?: 'approachable' | 'a stretch' | 'ambitious';
   thumbnail_svg?: string;
+  createdAt?: string;
 }
 
 export interface ValuePlan {

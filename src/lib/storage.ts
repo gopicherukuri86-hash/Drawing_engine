@@ -1,8 +1,9 @@
-import { SceneBrief } from '../types';
+import { SceneBrief, SceneVariant } from '../types';
 
 const DB_NAME = 'ArtStudioDB';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = 'saved_briefs';
+const STORE_VARIANTS = 'generated_variants';
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -19,6 +20,9 @@ function openDB(): Promise<IDBDatabase> {
       const db = (event.target as IDBOpenDBRequest).result;
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(STORE_VARIANTS)) {
+        db.createObjectStore(STORE_VARIANTS, { keyPath: 'id' });
       }
     };
   });
@@ -167,4 +171,97 @@ export async function deleteBriefFromStorage(id: string): Promise<SceneBrief[]> 
   }
 
   return getSavedBriefs();
+}
+
+/**
+ * Cache a generated SceneVariant to IndexedDB, downscaling images first
+ */
+export async function saveVariantToCache(variant: SceneVariant): Promise<void> {
+  if (!variant || !variant.id) return;
+
+  const variantToSave: SceneVariant = await downscaleObjectImages(JSON.parse(JSON.stringify(variant)));
+  if (!variantToSave.createdAt) {
+    variantToSave.createdAt = new Date().toISOString();
+  }
+
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_VARIANTS, 'readwrite');
+      const store = tx.objectStore(STORE_VARIANTS);
+      const request = store.put(variantToSave);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error('Failed to save variant to IndexedDB cache:', err);
+  }
+}
+
+/**
+ * Get a cached variant by ID from IndexedDB
+ */
+export async function getVariantFromCache(variantId: string): Promise<SceneVariant | null> {
+  if (!variantId) return null;
+
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_VARIANTS, 'readonly');
+      const store = tx.objectStore(STORE_VARIANTS);
+      const request = store.get(variantId);
+
+      request.onsuccess = () => resolve((request.result as SceneVariant) || null);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error('Failed to get variant from IndexedDB cache:', err);
+    return null;
+  }
+}
+
+/**
+ * Get all cached scene variants from IndexedDB sorted by date
+ */
+export async function getCachedVariants(): Promise<SceneVariant[]> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_VARIANTS, 'readonly');
+      const store = tx.objectStore(STORE_VARIANTS);
+      const request = store.getAll();
+
+      request.onsuccess = () => {
+        const results = (request.result || []) as SceneVariant[];
+        results.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        resolve(results);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error('Failed to get cached variants from IndexedDB:', err);
+    return [];
+  }
+}
+
+/**
+ * Delete a cached variant by ID from IndexedDB
+ */
+export async function deleteVariantFromCache(variantId: string): Promise<SceneVariant[]> {
+  try {
+    const db = await openDB();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(STORE_VARIANTS, 'readwrite');
+      const store = tx.objectStore(STORE_VARIANTS);
+      const request = store.delete(variantId);
+
+      request.onsuccess = () => resolve();
+      request.onerror = () => reject(request.error);
+    });
+  } catch (err) {
+    console.error('Failed to delete variant from IndexedDB cache:', err);
+  }
+
+  return getCachedVariants();
 }

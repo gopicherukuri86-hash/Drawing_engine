@@ -428,6 +428,7 @@ export default function App() {
           setCurrentBrief(brief);
           setViewState('brief');
         }}
+        onSelectVariant={handleSelectVariant}
         onDeleteBrief={handleDeleteBrief}
       />
     </div>
