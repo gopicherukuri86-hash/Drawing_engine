@@ -35,6 +35,8 @@ export interface SceneVariant {
   image_url?: string;
   imagePrompt?: string;
   lineArtImage?: string;
+  aspect?: string;
+  aspectRatio?: string;
   difficulty?: 'approachable' | 'a stretch' | 'ambitious';
   thumbnail_svg?: string;
 }

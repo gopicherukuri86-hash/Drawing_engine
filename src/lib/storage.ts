@@ -70,6 +70,39 @@ export async function downscaleImage(dataUrl: string, maxDimension = 800, qualit
   });
 }
 
+/**
+ * Recursively walk an object/array and downscale any string field starting with "data:image/"
+ */
+export async function downscaleObjectImages<T>(obj: T, maxDimension = 800, quality = 0.75): Promise<T> {
+  if (!obj || typeof obj !== 'object') {
+    if (typeof obj === 'string' && (obj as string).startsWith('data:image/')) {
+      return (await downscaleImage(obj as string, maxDimension, quality)) as unknown as T;
+    }
+    return obj;
+  }
+
+  if (Array.isArray(obj)) {
+    const arrayResult = await Promise.all(
+      obj.map((item) => downscaleObjectImages(item, maxDimension, quality))
+    );
+    return arrayResult as unknown as T;
+  }
+
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(obj as Record<string, any>)) {
+    const val = (obj as Record<string, any>)[key];
+    if (typeof val === 'string' && val.startsWith('data:image/')) {
+      result[key] = await downscaleImage(val, maxDimension, quality);
+    } else if (typeof val === 'object' && val !== null) {
+      result[key] = await downscaleObjectImages(val, maxDimension, quality);
+    } else {
+      result[key] = val;
+    }
+  }
+
+  return result as T;
+}
+
 export async function getSavedBriefs(): Promise<SceneBrief[]> {
   try {
     const db = await openDB();
@@ -98,14 +131,8 @@ export async function getSavedBriefs(): Promise<SceneBrief[]> {
 }
 
 export async function saveBriefToStorage(brief: SceneBrief): Promise<SceneBrief[]> {
-  // Deep clone and downscale image if present
-  const briefToSave: SceneBrief = JSON.parse(JSON.stringify(brief));
-  if (briefToSave.image) {
-    briefToSave.image = await downscaleImage(briefToSave.image, 800, 0.75);
-  }
-  if (briefToSave.variant && briefToSave.variant.image) {
-    briefToSave.variant.image = await downscaleImage(briefToSave.variant.image, 800, 0.75);
-  }
+  // Deep clone and downscale all base64 images present anywhere in brief
+  const briefToSave: SceneBrief = await downscaleObjectImages(JSON.parse(JSON.stringify(brief)));
 
   try {
     const db = await openDB();

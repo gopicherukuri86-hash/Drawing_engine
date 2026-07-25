@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { SceneVariant, Style } from '../types';
-import { Sparkles, Palette, Loader2 } from 'lucide-react';
+import { Sparkles, Palette, Loader2, RefreshCw } from 'lucide-react';
 import { checkCapAllowed, recordImageGeneration } from '../utils/costTracker';
 
 interface VariantPickerProps {
@@ -22,6 +22,57 @@ export const VariantPicker: React.FC<VariantPickerProps> = ({
 }) => {
   const [variantImages, setVariantImages] = useState<Record<string, string>>({});
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({});
+  const [imageErrors, setImageErrors] = useState<Record<string, string>>({});
+
+  const fetchSingleVariantImage = useCallback(
+    async (v: SceneVariant) => {
+      const img = v.image_url || v.image;
+      if (img) return;
+
+      const { allowed } = checkCapAllowed();
+      if (!allowed) {
+        setImageErrors((prev) => ({
+          ...prev,
+          [v.id]: 'Daily limit reached. Unlock at top bar.',
+        }));
+        return;
+      }
+
+      setLoadingImages((prev) => ({ ...prev, [v.id]: true }));
+      setImageErrors((prev) => ({ ...prev, [v.id]: '' }));
+
+      try {
+        const res = await fetch('/api/generate-variant-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: v.imagePrompt || `${v.title}. ${v.description}`,
+            title: v.title,
+            style,
+            aspectRatio: v.aspect || v.aspectRatio || '4:3',
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success && data.image) {
+          setVariantImages((prev) => ({ ...prev, [v.id]: data.image }));
+          v.image_url = data.image;
+          recordImageGeneration(1);
+        } else {
+          throw new Error(data.error || 'Failed to generate image');
+        }
+      } catch (err: any) {
+        console.warn(`Failed fetching image for variant ${v.title}`, err);
+        setImageErrors((prev) => ({
+          ...prev,
+          [v.id]: err?.message || 'Failed to load picture preview.',
+        }));
+      } finally {
+        setLoadingImages((prev) => ({ ...prev, [v.id]: false }));
+      }
+    },
+    [style]
+  );
 
   useEffect(() => {
     // Populate initial images if available
@@ -34,41 +85,14 @@ export const VariantPicker: React.FC<VariantPickerProps> = ({
     });
     setVariantImages(initialMap);
 
-    // Auto-fetch missing images for variants if cap is allowed
+    // Auto-fetch missing images for all variants in parallel
     variants.forEach((v) => {
       const img = v.image_url || v.image;
-      if (!img && !loadingImages[v.id]) {
-        const { allowed } = checkCapAllowed();
-        if (!allowed) {
-          console.warn(`Daily $0.50 cap reached. Unlock cap in the top bar to generate more pictures.`);
-          return;
-        }
-
-        setLoadingImages((prev) => ({ ...prev, [v.id]: true }));
-        fetch('/api/generate-variant-image', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            prompt: v.imagePrompt || `${v.title}. ${v.description}`,
-            title: v.title,
-            style,
-          }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data.success && data.image) {
-              setVariantImages((prev) => ({ ...prev, [v.id]: data.image }));
-              v.image_url = data.image;
-              recordImageGeneration(1);
-            }
-          })
-          .catch((err) => console.warn(`Failed auto-fetching image for variant ${v.title}`, err))
-          .finally(() => {
-            setLoadingImages((prev) => ({ ...prev, [v.id]: false }));
-          });
+      if (!img) {
+        fetchSingleVariantImage(v);
       }
     });
-  }, [variants, style]);
+  }, [variants, fetchSingleVariantImage]);
 
   return (
     <div className="w-full max-w-5xl mx-auto flex flex-col gap-6 p-4 md:p-6 animate-fade-in">
@@ -103,39 +127,77 @@ export const VariantPicker: React.FC<VariantPickerProps> = ({
         {variants.map((varItem) => {
           const displayImage = variantImages[varItem.id] || varItem.image_url || varItem.image;
           const isFetching = loadingImages[varItem.id];
+          const errorMsg = imageErrors[varItem.id];
+          const isSquare = varItem.aspect === '1:1';
 
           return (
             <div
               key={varItem.id}
               onClick={() => {
                 if (!isLoading) {
-                  const updatedVar = { ...varItem, image: displayImage || varItem.image, image_url: displayImage || varItem.image_url };
+                  const updatedVar = {
+                    ...varItem,
+                    image: displayImage || varItem.image,
+                    image_url: displayImage || varItem.image_url,
+                  };
                   onSelectVariant(updatedVar);
                 }
               }}
               className="glass-panel rounded-3xl p-4 flex flex-col justify-between gap-3 border border-white/70 shadow-md hover:shadow-xl hover:border-indigo-400/80 transition-all cursor-pointer group hover:-translate-y-1 relative overflow-hidden"
             >
-              {/* Image Preview */}
-              <div className="w-full aspect-[4/3] bg-slate-100/80 rounded-2xl border border-slate-200/80 overflow-hidden relative shadow-inner flex items-center justify-center">
+              {/* Image Preview Container */}
+              <div
+                className={`w-full ${
+                  isSquare ? 'aspect-square' : 'aspect-[4/3]'
+                } bg-slate-100/80 rounded-2xl border border-slate-200/80 overflow-hidden relative shadow-inner flex items-center justify-center`}
+              >
                 {displayImage ? (
                   <img
                     src={displayImage}
                     alt={varItem.title}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   />
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-indigo-600 text-xs font-bold p-4 text-center">
-                    <Loader2 className="w-6 h-6 animate-spin" />
-                    <span>{isFetching ? 'Generating artwork picture...' : 'Preparing preview...'}</span>
+                ) : isFetching ? (
+                  <div className="flex flex-col items-center gap-2 text-indigo-600 text-xs font-bold p-4 text-center animate-pulse">
+                    <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+                    <span>Generating artwork picture...</span>
                   </div>
+                ) : errorMsg ? (
+                  <div className="flex flex-col items-center gap-2 text-rose-600 text-xs font-bold p-4 text-center">
+                    <span>{errorMsg}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fetchSingleVariantImage(varItem);
+                      }}
+                      className="mt-1 px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 rounded-full font-extrabold text-xs flex items-center gap-1 transition"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Retry Picture
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      fetchSingleVariantImage(varItem);
+                    }}
+                    className="px-3.5 py-2 bg-indigo-100 hover:bg-indigo-200 text-indigo-900 rounded-full font-extrabold text-xs flex items-center gap-1.5 transition"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" /> Generate Picture
+                  </button>
                 )}
               </div>
 
               {/* Title & Description */}
               <div className="flex flex-col gap-1 px-1">
-                <h3 className="font-extrabold text-slate-900 text-lg group-hover:text-indigo-600 transition">
-                  {varItem.title}
-                </h3>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="font-extrabold text-slate-900 text-lg group-hover:text-indigo-600 transition">
+                    {varItem.title}
+                  </h3>
+                  <span className="text-[10px] font-extrabold text-slate-500 uppercase bg-slate-200/60 px-2 py-0.5 rounded-full">
+                    {varItem.aspect || '4:3'}
+                  </span>
+                </div>
                 <p className="text-xs font-medium text-slate-600 line-clamp-2">
                   {varItem.description || varItem.pitch}
                 </p>

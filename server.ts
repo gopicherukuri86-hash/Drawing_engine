@@ -80,7 +80,8 @@ async function startServer() {
 
   async function generateImageFromPrompt(
     ai: GoogleGenAI,
-    prompt: string
+    prompt: string,
+    aspectRatio: string = "4:3"
   ): Promise<string> {
     const modelsToTry = [
       "gemini-3.1-flash-lite-image",
@@ -92,13 +93,13 @@ async function startServer() {
 
     for (const mod of modelsToTry) {
       try {
-        console.log(`Attempting image generation with model: ${mod}`);
+        console.log(`Attempting image generation with model: ${mod} (aspectRatio: ${aspectRatio})`);
         const res = await ai.models.generateContent({
           model: mod,
           contents: { parts: [{ text: prompt }] },
           config: {
             imageConfig: {
-              aspectRatio: "1:1"
+              aspectRatio: aspectRatio || "4:3"
             }
           } as any
         });
@@ -145,6 +146,7 @@ Per variant:
 - title: short descriptive title (3-5 words)
 - description: vivid 1-2 sentence description of the visual scene, subject, background, lighting
 - light: one short sentence describing the light direction or color
+- aspect: aspect ratio suited for this take, either "4:3" (for wide/landscape subjects) or "1:1" (for square subjects)
 - thumbnail_svg: standalone SVG string (viewBox="0 0 280 200") with background rect, key shapes, and colors representing this take
 
 Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
@@ -175,9 +177,10 @@ Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
                     title: { type: Type.STRING },
                     description: { type: Type.STRING },
                     light: { type: Type.STRING },
+                    aspect: { type: Type.STRING, enum: ["4:3", "1:1"] },
                     thumbnail_svg: { type: Type.STRING },
                   },
-                  required: ["id", "title", "description", "light", "thumbnail_svg"],
+                  required: ["id", "title", "description", "light", "aspect", "thumbnail_svg"],
                 },
               },
             },
@@ -189,24 +192,18 @@ Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
       const payload = JSON.parse(response.text || "{}");
       const rawVariants = payload.variants || [];
 
-      // Append image prompts and generate real bitmap preview images for each variant
-      const variantsWithPrompts = await Promise.all(
-        rawVariants.map(async (v: any) => {
-          const imagePrompt = `${v.title}. ${v.description}. ${styleDesc}. ${STYLE_SUFFIX}`;
-          let image_url = null;
-          try {
-            image_url = await generateImageFromPrompt(ai, imagePrompt);
-          } catch (imgErr) {
-            console.warn(`Failed to generate initial image for variant "${v.title}":`, imgErr);
-          }
-          return {
-            ...v,
-            pitch: v.description,
-            imagePrompt,
-            image_url,
-          };
-        })
-      );
+      // Append image prompts and return immediately without blocking on image generation
+      const variantsWithPrompts = rawVariants.map((v: any) => {
+        const imagePrompt = `${v.title}. ${v.description}. ${styleDesc}. ${STYLE_SUFFIX}`;
+        return {
+          ...v,
+          pitch: v.description,
+          imagePrompt,
+          image_url: null,
+          aspect: v.aspect || "4:3",
+          aspectRatio: v.aspect || "4:3",
+        };
+      });
 
       res.json({ success: true, variants: variantsWithPrompts });
     } catch (error: any) {
@@ -229,14 +226,14 @@ Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
   app.post("/api/generate-variant-image", async (req, res) => {
     try {
       const ai = getAIClient();
-      const { prompt, title, style } = req.body;
+      const { prompt, title, style, aspectRatio } = req.body;
 
       if (!prompt) {
         res.status(400).json({ error: "Image prompt is required" });
         return;
       }
 
-      const imageUrl = await generateImageFromPrompt(ai, prompt);
+      const imageUrl = await generateImageFromPrompt(ai, prompt, aspectRatio || "4:3");
       res.json({ success: true, image: imageUrl });
     } catch (error: any) {
       console.error("Error generating variant image:", error);
@@ -254,7 +251,7 @@ Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
   app.post("/api/generate-coloring-page", async (req, res) => {
     try {
       const ai = getAIClient();
-      const { prompt, title } = req.body;
+      const { prompt, title, aspectRatio } = req.body;
 
       if (!prompt && !title) {
         res.status(400).json({ error: "Image prompt or title is required" });
@@ -263,7 +260,7 @@ Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
 
       const lineArtPrompt = `Clean black and white line art coloring page for a painting scene titled "${title || "Art Piece"}". Subject description: ${prompt || title}. Crisp bold black outlines on pure white background. No colors, no grayscale shading, no grey gradients, printable coloring book page style for kids and adults. Uncolored template.`;
 
-      const imageUrl = await generateImageFromPrompt(ai, lineArtPrompt);
+      const imageUrl = await generateImageFromPrompt(ai, lineArtPrompt, aspectRatio || "4:3");
       res.json({ success: true, image: imageUrl });
     } catch (error: any) {
       console.error("Error generating coloring page image:", error);
@@ -292,11 +289,12 @@ Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
       const styleDesc = STYLE_PROMPTS[activeStyle] || STYLE_PROMPTS.watercolour;
 
       const imagePrompt = variant.imagePrompt || `${variant.title}. ${variant.description || variant.pitch}. ${styleDesc}. ${STYLE_SUFFIX}`;
+      const aspect = variant.aspect || variant.aspectRatio || "4:3";
 
       // 1. Generate image using Gemini image models
-      let highFidImage = variant.image || null;
+      let highFidImage = variant.image || variant.image_url || null;
       if (!highFidImage || highFidImage.length < 500) {
-        highFidImage = await generateImageFromPrompt(ai, imagePrompt);
+        highFidImage = await generateImageFromPrompt(ai, imagePrompt, aspect);
       }
 
       // 2. Text call for Palette and 1-sentence Light summary
