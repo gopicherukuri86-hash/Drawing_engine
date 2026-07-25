@@ -1,4 +1,4 @@
-export type Medium = 'watercolour' | 'soft pastel' | 'either';
+export type Medium = 'watercolour' | 'soft pastel' | 'pen and wash' | 'mixed';
 
 export type DrawingLayer = 'construction' | 'outline' | 'detail';
 
@@ -7,6 +7,19 @@ export interface DrawingStep {
   instruction: string;
   svg_code: string;
   layer?: DrawingLayer;
+}
+
+export interface LayoutOption {
+  thumbnail_svg: string;
+  label: string;
+  note: string;
+}
+
+export interface CompositionGuide {
+  layouts: LayoutOption[];
+  focal_point: string;
+  eye_path: string;
+  rationale: string;
 }
 
 export interface SceneVariant {
@@ -51,8 +64,7 @@ export interface SceneBrief {
   id: string;
   variant: SceneVariant;
   medium: Medium;
-  composition_guide: DrawingStep[];
-  layout_plan?: string;
+  composition_guide: CompositionGuide;
   value_plan: ValuePlan;
   palette: {
     swatches: PaletteSwatch[];
@@ -87,7 +99,7 @@ export interface ScenePreset {
   description: string;
 }
 
-// Legacy compatibility shim for gallery/tutorial state if needed
+// Legacy compatibility shim
 export interface DrawingTutorial {
   id: string;
   title: string;
@@ -97,4 +109,3 @@ export interface DrawingTutorial {
   sourceType: 'text' | 'image' | 'preset';
   originalImage?: string;
 }
-

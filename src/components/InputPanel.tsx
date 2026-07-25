@@ -109,13 +109,13 @@ export const InputPanel: React.FC<InputPanelProps> = ({
           <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
             Painting Medium:
           </label>
-          <div className="grid grid-cols-3 gap-3">
-            {(['watercolour', 'soft pastel', 'either'] as Medium[]).map((m) => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {(['watercolour', 'soft pastel', 'pen and wash', 'mixed'] as Medium[]).map((m) => (
               <button
                 key={m}
                 type="button"
                 onClick={() => setMedium(m)}
-                className={`py-2.5 px-4 rounded-2xl font-black text-xs uppercase tracking-wider transition border text-center ${
+                className={`py-2.5 px-3 rounded-2xl font-black text-xs uppercase tracking-wider transition border text-center ${
                   medium === m
                     ? 'bg-slate-900 text-white border-slate-900 shadow-md'
                     : 'bg-white/60 hover:bg-white text-slate-700 border-slate-300'

@@ -41,7 +41,9 @@ async function startServer() {
         return;
       }
 
-      const systemInstruction = `You are a professional art instructor for a 10-year-old artist painting in ${medium || 'watercolour or soft pastel'}.
+      const activeMedium = medium || "watercolour";
+
+      const systemInstruction = `You are a professional art instructor for an accomplished 10-year-old artist painting/drawing in ${activeMedium}.
 Subject scope: Scenes are CHARACTER-IN-ENVIRONMENT (a creature/figure as focal subject inside a fully realized setting with background/midground/foreground separation and directional light).
 
 Return 3 to 4 composition variants that interpret the idea GENUINELY DIFFERENTLY — vary framing, time of day, weather, viewpoint, and mood.
@@ -67,7 +69,7 @@ Rules:
           inlineData: { mimeType: "image/png", data: cleanBase64 },
         });
       }
-      parts.push({ text: `Idea: ${idea || "Character in environment scene"}. Medium: ${medium || "either"}. Generate 3-4 distinct compositional variants.` });
+      parts.push({ text: `Idea: ${idea || "Character in environment scene"}. Medium: ${activeMedium}. Generate 3-4 distinct compositional variants.` });
 
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",
@@ -125,43 +127,45 @@ Rules:
 
       const activeMedium = medium || variant.medium || 'watercolour';
 
-      const systemInstruction = `You are an expert art instructor providing an ARTIST BRIEF for a 10-year-old artist painting in ${activeMedium} on paper.
+      const systemInstruction = `You are an expert art instructor providing an ARTIST BRIEF for a skilled 10-year-old artist executing a painting/drawing in ${activeMedium} on paper.
 
 Input: Chosen composition variant: "${variant.title}" (${variant.pitch}, Light: ${variant.light}, Framing: ${variant.framing}, Mood: ${variant.mood}).
 
 Generate a full Artist Brief payload:
 
-1. layout_plan: MUST open with an explicit parts checklist for the subject (e.g. "Checklist: head, torso, left wing, right wing (mirrored), tail, background oak branch, foreground ferns"). Every part named must appear in at least one step.
+1. composition_guide: Planning aid comparing 2 to 3 layout options for this scene.
+   - layouts: Array of 2 to 3 layout alternatives of the chosen scene on 280x200 viewBox (major masses, value blocks, focal point marker, and main directional lines only).
+     - thumbnail_svg: clean SVG code 280x200 viewBox showing simple shape blocks for major masses and directional guide lines/focal mark.
+     - label: short name for the arrangement (e.g. "low horizon, subject right", "diagonal perspective, off-center focal point").
+     - note: one sentence on what this arrangement emphasizes.
+   - focal_point: string describing the precise visual center of interest and how framing leads to it.
+   - eye_path: string describing how the eye enters and travels through the directional lines/masses.
+   - rationale: one paragraph on why the primary layout works best and what the alternatives would cost or gain.
 
-2. composition_guide: 4 to 6 steps maximum on 500x500 viewBox (bounds 40..460).
-   - Structure and proportion scaffolding only. Do NOT instruct on small details.
-   - Each step has: step_number, instruction (concise technical directive without exclamation marks), svg_code (bare SVG elements), layer ("construction" | "outline" | "detail").
-   - Layer rules:
-     - Steps 1-2 MUST be layer "construction" (block-in, axis lines).
-     - Middle steps MUST be layer "outline" (main contour, silhouetting).
-     - The FINAL step MUST ALWAYS be layer "detail" (focal accents, structural highlights).
-   - Symmetry rule: For bilaterally symmetric features (wings, ears, limbs, eyes), derive the second side by mirroring around the center axis given in layout_plan.
-
-3. value_plan: Three 280x200 viewBox SVG thumbnails in greyscale (#111827 to #f9fafb fills):
+2. value_plan: Three 280x200 viewBox SVG thumbnails in greyscale (#111827 to #f9fafb fills):
    - three_values: light, mid, dark shape blocks.
    - five_values: expanded 5-value hierarchy.
    - light_source_structure: final value map with light direction indicator mark (<path d="..." fill="#fef08a"/> or similar sun arrow/glow).
    - eye_focus_note: one sentence on where the eye should land first and why.
 
-4. palette: 5-7 swatches.
+3. palette: 5-7 swatches.
    - Each swatch: hex, pigment_name (pigment-style like "Raw Umber", "French Ultramarine", "Yellow Ochre", "Viridian", "Payne's Grey"), role in picture, depth_plane ("background" | "midground" | "foreground").
    - rationale: two sentences on why this palette suits the stated mood (${variant.mood}). Muted and natural colors.
 
-5. technique_notes: 4-6 MEDIUM-SPECIFIC technical directives for ${activeMedium}.
-   ${activeMedium === 'watercolour'
+4. technique_notes: 4-6 MEDIUM-SPECIFIC technical directives for ${activeMedium}.
+   ${activeMedium === 'pen and wash'
+     ? 'Address: 1) whether ink goes down before or after the washes and why for this particular subject; 2) where to leave line out entirely and let the wash carry the form; 3) line weight variation across depth planes; 4) how much detail the pen should carry versus the paint; 5) waterproof versus soluble ink for the desired effect.'
+     : activeMedium === 'mixed'
+     ? 'Address which two media are being combined for this scene and address the interaction between them (e.g. layering order, resist effects, paper tooth constraints, drying/fixation).'
+     : activeMedium === 'watercolour'
      ? 'Address order of washes, reserved white paper BEFORE starting, wet-on-wet vs wet-on-dry areas, granulation/blooms, dry time dependencies, final touches.'
      : 'Address paper tone choice, dark-to-light vs light-to-dark layering, finger/stump blending vs unblended strokes, side vs edge of stick, fixative timing.'}
 
-6. texture_notes: 4-6 material-specific texture guidance sentences for materials in this picture (e.g. water, foliage, bark, stone, scales, fur).
+5. texture_notes: 4-6 material-specific texture guidance sentences for materials in this picture (e.g. water, foliage, bark, stone, scales, fur).
 
-7. watch_points: 3-5 stage/risk/prevention items for THIS picture in ${activeMedium}.
+6. watch_points: 3-5 stage/risk/prevention items for THIS picture in ${activeMedium}.
    - Each item: stage (when in process), risk (what goes wrong), prevention (what to do instead).
-   - Cover irreversible decisions (reserved whites, first darks, paper tooth, over-blending).
+   - Cover irreversible decisions (reserved whites, first darks, paper tooth, over-blending, permanent ink lines).
 
 Tone: Calm, professional, technical art-instructor. No exclamation marks. No "let's", no "cute/happy/friendly".`;
 
@@ -182,19 +186,26 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              layout_plan: { type: Type.STRING },
               composition_guide: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    step_number: { type: Type.INTEGER },
-                    instruction: { type: Type.STRING },
-                    svg_code: { type: Type.STRING },
-                    layer: { type: Type.STRING, enum: ["construction", "outline", "detail"] },
+                type: Type.OBJECT,
+                properties: {
+                  layouts: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        thumbnail_svg: { type: Type.STRING },
+                        label: { type: Type.STRING },
+                        note: { type: Type.STRING },
+                      },
+                      required: ["thumbnail_svg", "label", "note"],
+                    },
                   },
-                  required: ["step_number", "instruction", "svg_code", "layer"],
+                  focal_point: { type: Type.STRING },
+                  eye_path: { type: Type.STRING },
+                  rationale: { type: Type.STRING },
                 },
+                required: ["layouts", "focal_point", "eye_path", "rationale"],
               },
               value_plan: {
                 type: Type.OBJECT,
@@ -257,28 +268,18 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
                 },
               },
             },
-            required: ["layout_plan", "composition_guide", "value_plan", "palette", "technique_notes", "texture_notes", "watch_points"],
+            required: ["composition_guide", "value_plan", "palette", "technique_notes", "texture_notes", "watch_points"],
           },
         },
       });
 
       const payload = JSON.parse(response.text || "{}");
 
-      // Bug Fix 3 Validation: Ensure final step is layer "detail"
-      if (payload.composition_guide && payload.composition_guide.length > 0) {
-        const lastIndex = payload.composition_guide.length - 1;
-        if (payload.composition_guide[lastIndex].layer !== "detail") {
-          console.warn(`[Server Validation Warning] Final step layer was "${payload.composition_guide[lastIndex].layer}". Correcting to "detail".`);
-          payload.composition_guide[lastIndex].layer = "detail";
-        }
-      }
-
       const brief = {
         id: `brief-${Date.now()}`,
         variant,
         medium: activeMedium,
-        layout_plan: payload.layout_plan,
-        composition_guide: payload.composition_guide || [],
+        composition_guide: payload.composition_guide,
         value_plan: payload.value_plan,
         palette: payload.palette,
         technique_notes: payload.technique_notes || [],
@@ -308,7 +309,9 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
         return;
       }
 
-      const systemInstruction = `You are a working artist consultant diagnosing a painting issue for a 10-year-old artist painting on paper in ${medium || 'watercolour or soft pastel'}.
+      const activeMedium = medium || brief?.medium || 'watercolour';
+
+      const systemInstruction = `You are a working artist consultant diagnosing a painting/drawing issue for an accomplished 10-year-old artist painting on paper in ${activeMedium}.
 
 Input context:
 Brief title: "${brief?.variant?.title || 'Painting'}"
@@ -330,7 +333,7 @@ Rules:
         const cleanBase64 = wipImageBase64.replace(/^data:image\/\w+;base64,/, "");
         parts.push({ inlineData: { mimeType: "image/png", data: cleanBase64 } });
       }
-      parts.push({ text: `Painting: ${brief?.variant?.title || 'Artwork'}. Medium: ${medium}. Issue: ${problem}. Diagnose and provide recovery steps.` });
+      parts.push({ text: `Painting: ${brief?.variant?.title || 'Artwork'}. Medium: ${activeMedium}. Issue: ${problem}. Diagnose and provide recovery steps.` });
 
       const response = await ai.models.generateContent({
         model: "gemini-3.6-flash",

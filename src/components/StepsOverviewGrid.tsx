@@ -1,27 +1,21 @@
 import React from 'react';
-import { DrawingStep, SceneBrief } from '../types';
+import { SceneBrief } from '../types';
 import { Printer, Sparkles, Layers, Eye, Palette, BookOpen, ShieldAlert } from 'lucide-react';
-import { sanitizeSvg } from '../utils/sanitizeSvg';
 
 interface StepsOverviewGridProps {
-  steps?: DrawingStep[];
-  title?: string;
   brief?: SceneBrief;
-  onSelectStep?: (stepIndex: number) => void;
+  title?: string;
 }
 
 export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
-  steps = [],
-  title,
   brief,
-  onSelectStep,
+  title,
 }) => {
   const handlePrint = () => {
     window.print();
   };
 
-  const compositionSteps = brief?.composition_guide || steps;
-  const displayTitle = brief?.variant?.title || title || 'Step-by-Step Drawing Guide';
+  const displayTitle = brief?.variant?.title || title || 'Artist Reference Sheet';
 
   return (
     <div className="w-full glass-panel rounded-[32px] shadow-xl overflow-hidden print:shadow-none print:border-none print:m-0 print:p-0 bg-white/90">
@@ -59,59 +53,54 @@ export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
           )}
         </div>
 
-        {/* Section A: Composition Guide Grid */}
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
-            <Layers className="w-4 h-4 text-indigo-600" />
-            <h2 className="text-base font-black text-slate-900 uppercase tracking-wide">
-              1. Composition & Structure Steps
-            </h2>
-          </div>
+        {/* Section 1: Composition Layout Alternatives */}
+        {brief?.composition_guide?.layouts && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+              <Layers className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-base font-black text-slate-900 uppercase tracking-wide">
+                1. Composition Layout Options
+              </h2>
+            </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-            {compositionSteps.map((step, index) => {
-              const accumulatedSvg = sanitizeSvg(
-                compositionSteps
-                  .slice(0, index + 1)
-                  .map((s) => s.svg_code)
-                  .join('\n')
-              );
-
-              return (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {brief.composition_guide.layouts.map((layout, index) => (
                 <div
-                  key={`ref-step-${step.step_number}`}
-                  onClick={() => onSelectStep?.(index)}
-                  className="border border-slate-300 rounded-2xl p-3 bg-white shadow-sm flex flex-col justify-between gap-2 cursor-pointer hover:border-indigo-500 transition"
+                  key={`ref-layout-${index}`}
+                  className="border border-slate-300 rounded-2xl p-3 bg-white shadow-sm flex flex-col justify-between gap-2"
                 >
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded bg-slate-900 text-white">
-                      Step {step.step_number}
+                      {index === 0 ? 'Primary Layout' : `Option ${index + 1}`}
                     </span>
-                    {step.layer && (
-                      <span className="text-[9px] font-bold uppercase text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded">
-                        {step.layer}
-                      </span>
-                    )}
                   </div>
 
-                  <div className="w-full aspect-square bg-slate-50 rounded-xl overflow-hidden border border-slate-200 p-1">
+                  <div className="w-full aspect-[280/200] bg-slate-50 rounded-xl overflow-hidden border border-slate-200 p-1">
                     <svg
-                      viewBox="0 0 500 500"
+                      viewBox="0 0 280 200"
                       className="w-full h-full object-contain"
-                      dangerouslySetInnerHTML={{ __html: accumulatedSvg }}
+                      dangerouslySetInnerHTML={{ __html: layout.thumbnail_svg }}
                     />
                   </div>
 
-                  <p className="text-[11px] font-medium text-slate-800 leading-tight line-clamp-3">
-                    {step.instruction}
-                  </p>
+                  <div>
+                    <h4 className="text-xs font-black text-slate-900">{layout.label}</h4>
+                    <p className="text-[11px] font-medium text-slate-700 leading-tight mt-0.5">
+                      {layout.note}
+                    </p>
+                  </div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
+              ))}
+            </div>
 
-        {/* Section B: Value Plan (if Brief present) */}
+            <div className="text-xs font-medium text-slate-700 bg-slate-100 p-3 rounded-xl border border-slate-200 flex flex-col gap-1">
+              <div><strong className="text-slate-900">Focal Point:</strong> {brief.composition_guide.focal_point}</div>
+              <div><strong className="text-slate-900">Eye Path:</strong> {brief.composition_guide.eye_path}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Section 2: Value Plan */}
         {brief?.value_plan && (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
@@ -150,7 +139,7 @@ export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
           </div>
         )}
 
-        {/* Section C: Palette Swatches */}
+        {/* Section 3: Palette Swatches */}
         {brief?.palette && (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
@@ -172,7 +161,7 @@ export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
           </div>
         )}
 
-        {/* Section D: Technique & Watch Points */}
+        {/* Section 4 & 5: Technique & Watch Points */}
         {brief && (
           <div className="grid grid-cols-2 gap-4">
             <div className="border border-slate-300 rounded-2xl p-3 bg-white flex flex-col gap-2">

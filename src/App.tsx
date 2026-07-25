@@ -269,7 +269,6 @@ export default function App() {
 
             <StepsOverviewGrid
               brief={currentBrief || undefined}
-              steps={currentBrief?.composition_guide}
               title={currentBrief?.variant?.title}
             />
           </div>

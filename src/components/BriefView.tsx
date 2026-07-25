@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { SceneBrief } from '../types';
-import { DrawingStage } from './DrawingStage';
 import {
   Palette,
   Eye,
@@ -12,6 +11,7 @@ import {
   BookOpen,
   Sun,
   ShieldAlert,
+  Compass,
 } from 'lucide-react';
 
 interface BriefViewProps {
@@ -31,10 +31,6 @@ export const BriefView: React.FC<BriefViewProps> = ({
   onSaveBrief,
   isSaved,
 }) => {
-  const [currentStepIndex, setCurrentStepIndex] = useState(0);
-  const [autoPlay, setAutoPlay] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
-
   const { variant, medium, composition_guide, value_plan, palette, technique_notes, texture_notes, watch_points } = brief;
 
   return (
@@ -100,33 +96,72 @@ export const BriefView: React.FC<BriefViewProps> = ({
         </div>
       </div>
 
-      {/* Main Section 1: Composition Guide (DrawingStage) */}
-      <section className="flex flex-col gap-3">
+      {/* Main Section 1: Composition Guide comparison strip */}
+      <section className="glass-panel p-6 rounded-3xl flex flex-col gap-5 border border-white/70 shadow-lg">
         <div className="flex items-center gap-2">
           <Layers className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-xl font-black text-slate-900">1. Structural Composition Guide</h2>
-          <span className="text-xs font-semibold text-slate-500 hidden sm:inline">
-            (Scaffolding for paper block-in)
-          </span>
+          <h2 className="text-xl font-black text-slate-900">1. Composition Layout Options & Planning</h2>
         </div>
 
-        <DrawingStage
-          steps={composition_guide}
-          currentStepIndex={currentStepIndex}
-          onStepChange={setCurrentStepIndex}
-          title={variant.title}
-          autoPlay={autoPlay}
-          onToggleAutoPlay={() => setAutoPlay(!autoPlay)}
-          voiceEnabled={voiceEnabled}
-          onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
-          onAutoAdvance={() => {
-            if (currentStepIndex < composition_guide.length - 1) {
-              setCurrentStepIndex((prev) => prev + 1);
-            } else {
-              setAutoPlay(false);
-            }
-          }}
-        />
+        {/* Comparison Strip of 2-3 layouts */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {composition_guide?.layouts?.map((layout, idx) => (
+            <div
+              key={`layout-${idx}`}
+              className={`bg-white/80 rounded-2xl p-4 border flex flex-col justify-between gap-3 shadow-sm ${
+                idx === 0 ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-200'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span
+                  className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
+                    idx === 0 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {idx === 0 ? 'Primary Layout' : `Option ${idx + 1}`}
+                </span>
+              </div>
+
+              <div className="w-full aspect-[280/200] bg-slate-100/90 rounded-xl overflow-hidden border border-slate-200 shadow-inner flex items-center justify-center p-1">
+                <svg
+                  viewBox="0 0 280 200"
+                  className="w-full h-full object-contain select-none"
+                  dangerouslySetInnerHTML={{ __html: layout.thumbnail_svg }}
+                />
+              </div>
+
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-sm">{layout.label}</h3>
+                <p className="text-xs font-medium text-slate-600 mt-1 leading-snug">{layout.note}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Planning Insights */}
+        <div className="bg-slate-900 text-slate-100 p-5 rounded-2xl flex flex-col gap-3 text-xs md:text-sm">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1">
+              <span className="text-amber-400 font-extrabold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Compass className="w-3.5 h-3.5" /> Focal Point Alignment
+              </span>
+              <p className="font-medium text-slate-200 leading-relaxed">{composition_guide?.focal_point}</p>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="text-indigo-300 font-extrabold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Eye Path & Directional Flow
+              </span>
+              <p className="font-medium text-slate-200 leading-relaxed">{composition_guide?.eye_path}</p>
+            </div>
+          </div>
+
+          {composition_guide?.rationale && (
+            <div className="pt-3 border-t border-slate-800 text-slate-300 font-medium leading-relaxed">
+              <strong className="text-white">Composition Rationale:</strong> {composition_guide.rationale}
+            </div>
+          )}
+        </div>
       </section>
 
       {/* Main Section 2: Value Plan */}
@@ -231,7 +266,7 @@ export const BriefView: React.FC<BriefViewProps> = ({
         <section className="glass-panel p-6 rounded-3xl flex flex-col gap-3 border border-white/70 shadow-lg">
           <div className="flex items-center gap-2 text-indigo-900">
             <BookOpen className="w-5 h-5" />
-            <h2 className="text-lg font-black">4. Technique Notes ({medium})</h2>
+            <h2 className="text-lg font-black">4. Technique Directives ({medium})</h2>
           </div>
           <ul className="flex flex-col gap-2.5">
             {technique_notes.map((note, idx) => (

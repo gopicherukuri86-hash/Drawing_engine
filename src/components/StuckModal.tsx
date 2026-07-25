@@ -25,6 +25,13 @@ const PASTEL_QUICK_PICKS = [
   "colours won't blend",
 ];
 
+const PEN_AND_WASH_QUICK_PICKS = [
+  "ink bled into wet wash",
+  "ink line is too heavy",
+  "lost form without ink lines",
+  "wash smudged the ink line",
+];
+
 const COMMON_QUICK_PICKS = [
   "the proportions look wrong",
   "it looks flat",
@@ -44,8 +51,9 @@ export const StuckModal: React.FC<StuckModalProps> = ({
   const [diagnosisResult, setDiagnosisResult] = useState<StuckExchange | null>(null);
 
   const quickPicks = [
-    ...(medium === 'watercolour' || medium === 'either' ? WATERCOLOUR_QUICK_PICKS : []),
-    ...(medium === 'soft pastel' || medium === 'either' ? PASTEL_QUICK_PICKS : []),
+    ...(medium === 'watercolour' || medium === 'pen and wash' || medium === 'mixed' ? WATERCOLOUR_QUICK_PICKS : []),
+    ...(medium === 'soft pastel' || medium === 'mixed' ? PASTEL_QUICK_PICKS : []),
+    ...(medium === 'pen and wash' || medium === 'mixed' ? PEN_AND_WASH_QUICK_PICKS : []),
     ...COMMON_QUICK_PICKS,
   ];
 
