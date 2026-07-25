@@ -12,6 +12,8 @@ import {
   Sun,
   ShieldAlert,
   Compass,
+  Thermometer,
+  CircleDot,
 } from 'lucide-react';
 
 interface BriefViewProps {
@@ -31,7 +33,18 @@ export const BriefView: React.FC<BriefViewProps> = ({
   onSaveBrief,
   isSaved,
 }) => {
-  const { variant, medium, composition_guide, value_plan, palette, technique_notes, texture_notes, watch_points } = brief;
+  const {
+    variant,
+    medium,
+    composition_guide,
+    value_plan,
+    palette,
+    technique_notes,
+    texture_notes,
+    watch_points,
+    edge_notes,
+    colour_temperature,
+  } = brief;
 
   return (
     <div className="w-full max-w-6xl mx-auto flex flex-col gap-8 p-4 md:p-6 animate-fade-in pb-20">
@@ -258,15 +271,59 @@ export const BriefView: React.FC<BriefViewProps> = ({
             </div>
           ))}
         </div>
+
+        {colour_temperature && (
+          <div className="bg-amber-50/80 border border-amber-200 p-4 rounded-2xl flex flex-col gap-1">
+            <span className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Thermometer className="w-4 h-4 text-amber-700" />
+              Colour Temperature Structure
+            </span>
+            <p className="text-xs md:text-sm font-medium text-slate-800 leading-relaxed">
+              {colour_temperature}
+            </p>
+          </div>
+        )}
       </section>
 
-      {/* Main Section 4 & 5: Technique & Texture Notes */}
+      {/* Main Section 4: Edge Treatment Notes */}
+      {edge_notes && edge_notes.length > 0 && (
+        <section className="glass-panel p-6 rounded-3xl flex flex-col gap-4 border border-white/70 shadow-lg">
+          <div className="flex items-center gap-2">
+            <CircleDot className="w-5 h-5 text-indigo-600" />
+            <h2 className="text-xl font-black text-slate-900">4. Edge Treatment & Depth Reading</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {edge_notes.map((edge, idx) => (
+              <div key={`edge-${idx}`} className="bg-white/80 p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-black text-slate-900">{edge.area}</span>
+                  <span
+                    className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
+                      edge.treatment === 'hard'
+                        ? 'bg-slate-900 text-white'
+                        : edge.treatment === 'soft'
+                        ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
+                        : 'bg-amber-100 text-amber-900 border border-amber-200'
+                    }`}
+                  >
+                    {edge.treatment} edge
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-slate-700 leading-snug">{edge.reason}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Main Section 5 & 6: Technique & Texture Notes */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Technique Notes */}
         <section className="glass-panel p-6 rounded-3xl flex flex-col gap-3 border border-white/70 shadow-lg">
           <div className="flex items-center gap-2 text-indigo-900">
             <BookOpen className="w-5 h-5" />
-            <h2 className="text-lg font-black">4. Technique Directives ({medium})</h2>
+            <h2 className="text-lg font-black">5. Technique Directives ({medium})</h2>
           </div>
           <ul className="flex flex-col gap-2.5">
             {technique_notes.map((note, idx) => (
@@ -284,7 +341,7 @@ export const BriefView: React.FC<BriefViewProps> = ({
         <section className="glass-panel p-6 rounded-3xl flex flex-col gap-3 border border-white/70 shadow-lg">
           <div className="flex items-center gap-2 text-emerald-900">
             <Layers className="w-5 h-5" />
-            <h2 className="text-lg font-black">5. Material Texture Execution</h2>
+            <h2 className="text-lg font-black">6. Material Texture Execution</h2>
           </div>
           <div className="flex flex-col gap-2.5">
             {texture_notes.map((tex, idx) => (
@@ -301,11 +358,11 @@ export const BriefView: React.FC<BriefViewProps> = ({
         </section>
       </div>
 
-      {/* Main Section 6: Watch Points */}
+      {/* Main Section 7: Watch Points */}
       <section className="glass-panel p-6 rounded-3xl flex flex-col gap-4 border border-rose-200/60 shadow-lg bg-rose-50/20">
         <div className="flex items-center gap-2 text-rose-900">
           <ShieldAlert className="w-5 h-5 text-rose-600" />
-          <h2 className="text-xl font-black">6. Critical Watch Points (Avoid Irreversible Mistakes)</h2>
+          <h2 className="text-xl font-black">7. Critical Watch Points (Avoid Irreversible Mistakes)</h2>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

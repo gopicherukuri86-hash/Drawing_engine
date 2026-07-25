@@ -18,22 +18,6 @@ export const SCENE_PRESETS: ScenePreset[] = [
     description: 'Enclosed forest floor scene with soft organic textures and sheltering canopy.'
   },
   {
-    id: 'dragon-coins',
-    title: 'Dragon on Coins',
-    category: 'Scenes',
-    prompt: 'A small winged dragon sleeping peacefully coiled on a mound of ancient gold coins and gems',
-    iconName: 'Flame',
-    description: 'Rich interior vault scene with metallic glints, coins, and coin pile silhouette.'
-  },
-  {
-    id: 'sea-turtle-reef',
-    title: 'Turtle in Coral Reef',
-    category: 'Scenes',
-    prompt: 'A sea turtle drifting gently through an underwater coral reef with dappled sunbeams',
-    iconName: 'Compass',
-    description: 'Deep water scene with ray lighting, coral silhouettes, and floating marine life.'
-  },
-  {
     id: 'owl-hollow',
     title: 'Owl in Oak Hollow',
     category: 'Scenes',
@@ -50,19 +34,67 @@ export const SCENE_PRESETS: ScenePreset[] = [
     description: 'Layered woodland scene featuring soft atmospheric fog and distant tree silhouettes.'
   },
   {
-    id: 'frog-lilypad',
-    title: 'Frog on Lily Pad',
+    id: 'lantern-garden-wall',
+    title: 'Lantern on a garden wall at night',
     category: 'Scenes',
-    prompt: 'A tree frog sitting atop a broad lily pad on a calm pond surface at dusk',
-    iconName: 'Activity',
-    description: 'Serene water reflection setting with foreground lily pads and twilight sky.'
+    prompt: 'A glowing brass lantern resting on an ancient mossy stone garden wall at night with foliage and warm light spilling across stone',
+    iconName: 'Flame',
+    description: 'Emitted warmth and dramatic shadows on aged brickwork and trailing vines.'
   },
   {
-    id: 'cat-windowsill',
-    title: 'Cat at Windowsill',
+    id: 'peacock-walled-garden',
+    title: 'Peacock displaying in a walled garden',
     category: 'Scenes',
-    prompt: 'A cat sitting on an old wooden windowsill looking out at birds in a garden',
-    iconName: 'User',
-    description: 'Architectural window frame contrast against soft outdoor garden background.'
+    prompt: 'A peacock displaying its iridescent tail feathers in a secluded sunlit stone courtyard garden with archways',
+    iconName: 'Compass',
+    description: 'Sustained decorative plumage patterns and architectural stone framing.'
+  },
+  {
+    id: 'hillside-village-golden-hour',
+    title: 'Hillside village at golden hour',
+    category: 'Scenes',
+    prompt: 'A terraced hillside village with terracotta rooflines glowing under golden hour sunlight, looking down from a high vantage point',
+    iconName: 'Sun',
+    description: 'Complex atmospheric perspective, warm-cool contrast, and layered rooflines.'
+  },
+  {
+    id: 'stone-bridge-river',
+    title: 'Stone bridge over a shallow river',
+    category: 'Scenes',
+    prompt: 'An arched stone bridge over a clear shallow river with pebbles, reflections, and overhanging willow trees',
+    iconName: 'Layers',
+    description: 'Refractions in moving water, stone masonry textures, and dappled riverbank light.'
+  },
+  {
+    id: 'heron-water-dawn',
+    title: 'Heron standing in still water at dawn',
+    category: 'Scenes',
+    prompt: 'A solitary heron standing motionless in still glass-like lake water at dawn with soft mist and reed reflections',
+    iconName: 'Feather',
+    description: 'Mirror-like reflections, atmospheric gradient washes, and crisp silhouetted form.'
+  },
+  {
+    id: 'market-stalls-awnings',
+    title: 'Market stalls under awnings',
+    category: 'Scenes',
+    prompt: 'Rustic wooden market stalls piled with colorful produce beneath striped canvas awnings in an old cobblestone square',
+    iconName: 'BookOpen',
+    description: 'Rhythmic repeating structures, cast shadows beneath awnings, and vibrant detail.'
+  },
+  {
+    id: 'boats-moored-low-tide',
+    title: 'Boats moored at low tide',
+    category: 'Scenes',
+    prompt: 'Wooden fishing boats resting tilted on mudflats and wet sand at low tide with puddles reflecting a overcast sky',
+    iconName: 'Compass',
+    description: 'Wet reflection textures, wooden hull forms, and quiet coastal atmosphere.'
+  },
+  {
+    id: 'greenhouse-plants-outside',
+    title: 'Greenhouse full of plants, seen from outside',
+    category: 'Scenes',
+    prompt: 'A Victorian glass greenhouse overflowing with tropical palms and fern silhouettes, viewed from a foggy garden outside',
+    iconName: 'Sparkles',
+    description: 'Glass transparency, internal layered foliage silhouettes, and structural ironwork.'
   }
 ];

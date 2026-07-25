@@ -44,7 +44,7 @@ async function startServer() {
       const activeMedium = medium || "watercolour";
 
       const systemInstruction = `You are a professional art instructor for an accomplished 10-year-old artist painting/drawing in ${activeMedium}.
-Subject scope: Scenes are CHARACTER-IN-ENVIRONMENT (a creature/figure as focal subject inside a fully realized setting with background/midground/foreground separation and directional light).
+Subject scope: Scenes are CHARACTER-IN-ENVIRONMENT (a creature, figure, building, boat, or focal structure inside a fully realized setting with background/midground/foreground separation and directional light).
 
 Return 3 to 4 composition variants that interpret the idea GENUINELY DIFFERENTLY — vary framing, time of day, weather, viewpoint, and mood.
 
@@ -56,6 +56,12 @@ Per variant:
 - mood: three adjectives e.g. "solitary, serene, ancient"
 - difficulty: "approachable" | "a stretch" | "ambitious"
 - thumbnail_svg: loose compositional thumbnail, 280x200 viewBox. Big simple value shapes only. Three fill tones showing depth planes: light background (#e2e8f0), mid midground (#94a3b8), dark foreground (#334155). Include focal subject silhouette shape. Do NOT use complex tiny lines.
+
+Calibrate difficulty against an artist who already handles: emitted light on a dark ground, linear and atmospheric perspective in the same picture, sustained pattern work across a large area, complementary colour schemes, reserved highlights, and architectural subjects in line and wash.
+"approachable" — a comfortable evening's work for her.
+"a stretch" — one element she has done before, pushed further.
+"ambitious" — a technique she has not attempted yet: reflections in moving water, wet fabric, night rain, figures in motion, glass, polished metal, backlit translucency.
+At least one variant in every response must be "ambitious". Do not soften subjects to make them easier.
 
 Rules:
 - Calm, technical art voice.
@@ -167,6 +173,10 @@ Generate a full Artist Brief payload:
    - Each item: stage (when in process), risk (what goes wrong), prevention (what to do instead).
    - Cover irreversible decisions (reserved whites, first darks, paper tooth, over-blending, permanent ink lines).
 
+7. edge_notes: 3-4 items. Where edges should be hard, soft, or lost in this picture and what that does to the depth reading. Name the specific area each note refers to.
+
+8. colour_temperature: 2-3 sentences on the warm/cool structure of the scene — which plane is warm, which is cool, and where the temperature flips. Tie it to the light described in the variant.
+
 Tone: Calm, professional, technical art-instructor. No exclamation marks. No "let's", no "cute/happy/friendly".`;
 
       const parts: any[] = [];
@@ -267,8 +277,21 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
                   required: ["stage", "risk", "prevention"],
                 },
               },
+              edge_notes: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    area: { type: Type.STRING },
+                    treatment: { type: Type.STRING, enum: ["hard", "soft", "lost"] },
+                    reason: { type: Type.STRING },
+                  },
+                  required: ["area", "treatment", "reason"],
+                },
+              },
+              colour_temperature: { type: Type.STRING },
             },
-            required: ["composition_guide", "value_plan", "palette", "technique_notes", "texture_notes", "watch_points"],
+            required: ["composition_guide", "value_plan", "palette", "technique_notes", "texture_notes", "watch_points", "edge_notes", "colour_temperature"],
           },
         },
       });
@@ -285,6 +308,8 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
         technique_notes: payload.technique_notes || [],
         texture_notes: payload.texture_notes || [],
         watch_points: payload.watch_points || [],
+        edge_notes: payload.edge_notes || [],
+        colour_temperature: payload.colour_temperature || "",
         createdAt: new Date().toISOString(),
         stuck_exchanges: [],
       };

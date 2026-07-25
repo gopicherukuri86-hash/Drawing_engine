@@ -1,6 +1,6 @@
 import React from 'react';
 import { SceneBrief } from '../types';
-import { Printer, Sparkles, Layers, Eye, Palette, BookOpen, ShieldAlert } from 'lucide-react';
+import { Printer, Sparkles, Layers, Eye, Palette, BookOpen, ShieldAlert, Thermometer, CircleDot } from 'lucide-react';
 
 interface StepsOverviewGridProps {
   brief?: SceneBrief;
@@ -145,7 +145,7 @@ export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
             <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
               <Palette className="w-4 h-4 text-rose-600" />
               <h2 className="text-base font-black text-slate-900 uppercase tracking-wide">
-                3. Color Swatches ({brief.medium})
+                3. Color Swatches & Temperature ({brief.medium})
               </h2>
             </div>
 
@@ -155,6 +155,41 @@ export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
                   <div className="w-8 h-8 rounded-lg border border-slate-300" style={{ backgroundColor: sw.hex }} />
                   <span className="text-[10px] font-bold text-slate-900 truncate w-full" title={sw.pigment_name}>{sw.pigment_name}</span>
                   <span className="text-[8px] font-bold text-indigo-700 uppercase">{sw.depth_plane}</span>
+                </div>
+              ))}
+            </div>
+
+            {brief.colour_temperature && (
+              <div className="text-xs font-medium text-slate-800 bg-amber-50 p-3 rounded-xl border border-amber-200 flex flex-col gap-1">
+                <span className="font-extrabold text-amber-900 uppercase text-[10px] flex items-center gap-1">
+                  <Thermometer className="w-3.5 h-3.5 text-amber-700" /> Colour Temperature
+                </span>
+                <p className="leading-snug">{brief.colour_temperature}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Edge Treatment Notes */}
+        {brief?.edge_notes && brief.edge_notes.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+              <CircleDot className="w-4 h-4 text-indigo-600" />
+              <h2 className="text-base font-black text-slate-900 uppercase tracking-wide">
+                Edge Treatment Notes
+              </h2>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {brief.edge_notes.map((edge, idx) => (
+                <div key={`ref-edge-${idx}`} className="border border-slate-300 rounded-xl p-2.5 bg-white flex flex-col gap-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <strong className="text-slate-900">{edge.area}</strong>
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-800 border border-slate-300">
+                      {edge.treatment}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-snug">{edge.reason}</p>
                 </div>
               ))}
             </div>

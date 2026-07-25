@@ -60,6 +60,12 @@ export interface WatchPoint {
   prevention: string;
 }
 
+export interface EdgeNote {
+  area: string;
+  treatment: 'hard' | 'soft' | 'lost';
+  reason: string;
+}
+
 export interface SceneBrief {
   id: string;
   variant: SceneVariant;
@@ -73,6 +79,8 @@ export interface SceneBrief {
   technique_notes: string[];
   texture_notes: TextureNote[];
   watch_points: WatchPoint[];
+  edge_notes: EdgeNote[];
+  colour_temperature: string;
   createdAt: string;
   stuck_exchanges?: StuckExchange[];
 }
