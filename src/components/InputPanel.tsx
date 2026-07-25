@@ -1,10 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { SCENE_PRESETS } from '../data/presets';
-import { Medium, ScenePreset } from '../types';
+import { Style, ScenePreset } from '../types';
 import {
   Sparkles,
-  Upload,
-  Image as ImageIcon,
+  ImageIcon,
   X,
   Compass,
   Sun,
@@ -14,10 +13,11 @@ import {
   Activity,
   User,
   Lightbulb,
+  Palette,
 } from 'lucide-react';
 
 interface InputPanelProps {
-  onGenerateVariants: (data: { idea: string; medium: Medium; referenceImageBase64?: string }) => void;
+  onGenerateVariants: (data: { idea: string; style: Style; referenceImageBase64?: string }) => void;
   onSelectPreset: (preset: ScenePreset) => void;
   isLoading: boolean;
 }
@@ -33,13 +33,20 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   User: <User className="w-4 h-4 text-indigo-500" />,
 };
 
+const STYLES: { id: Style; label: string }[] = [
+  { id: 'watercolour', label: 'Watercolour' },
+  { id: 'soft pastel', label: 'Soft Pastel' },
+  { id: 'pen and wash', label: 'Pen & Wash' },
+  { id: 'storybook', label: 'Storybook' },
+];
+
 export const InputPanel: React.FC<InputPanelProps> = ({
   onGenerateVariants,
   onSelectPreset,
   isLoading,
 }) => {
   const [ideaText, setIdeaText] = useState('');
-  const [medium, setMedium] = useState<Medium>('watercolour');
+  const [style, setStyle] = useState<Style>('watercolour');
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -76,13 +83,13 @@ export const InputPanel: React.FC<InputPanelProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!ideaText.trim() && !uploadedImage) {
-      alert('Please enter an idea or select a scene starter');
+      alert('Please type an idea or choose a scene picture below!');
       return;
     }
 
     onGenerateVariants({
       idea: ideaText.trim(),
-      medium,
+      style,
       referenceImageBase64: uploadedImage || undefined,
     });
   };
@@ -93,35 +100,35 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         {/* Title */}
         <div>
           <div className="flex items-center gap-2 text-indigo-700 font-extrabold text-xs uppercase tracking-wider mb-1">
-            <Sparkles className="w-4 h-4" />
-            <span>Character in Environment Studio</span>
+            <Palette className="w-4 h-4 text-indigo-600" />
+            <span>Art Studio</span>
           </div>
           <h2 className="text-2xl font-black text-slate-900 tracking-tight">
-            Describe a Painting Scene
+            What would you like to paint today?
           </h2>
-          <p className="text-xs md:text-sm font-semibold text-slate-600 mt-1">
-            Enter a creature and environment idea. The engine generates 3-4 compositional variants to choose from.
+          <p className="text-xs md:text-sm font-medium text-slate-600 mt-1">
+            Type your idea below or tap one of the scenes to get started.
           </p>
         </div>
 
-        {/* Medium Selection Row */}
+        {/* Style Selection Row */}
         <div className="flex flex-col gap-2">
           <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-            Painting Medium:
+            Art Style:
           </label>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {(['watercolour', 'soft pastel', 'pen and wash', 'mixed'] as Medium[]).map((m) => (
+            {STYLES.map((s) => (
               <button
-                key={m}
+                key={s.id}
                 type="button"
-                onClick={() => setMedium(m)}
+                onClick={() => setStyle(s.id)}
                 className={`py-2.5 px-3 rounded-2xl font-black text-xs uppercase tracking-wider transition border text-center ${
-                  medium === m
+                  style === s.id
                     ? 'bg-slate-900 text-white border-slate-900 shadow-md'
                     : 'bg-white/60 hover:bg-white text-slate-700 border-slate-300'
                 }`}
               >
-                {m}
+                {s.label}
               </button>
             ))}
           </div>
@@ -130,14 +137,14 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         {/* Text Input Field */}
         <div className="flex flex-col gap-2">
           <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-            Scene Idea:
+            Your Idea:
           </label>
           <div className="relative">
             <input
               type="text"
               value={ideaText}
               onChange={(e) => setIdeaText(e.target.value)}
-              placeholder="e.g. 'Dragon sleeping on coins' or 'Fox under giant mushroom after rain'..."
+              placeholder="e.g. 'A fox reading under a mushroom' or 'A cozy cottage in twilight'..."
               className="w-full px-5 py-4 pl-12 rounded-2xl bg-white/70 backdrop-blur-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium text-slate-900 text-sm md:text-base shadow-inner"
             />
             <Lightbulb className="w-5 h-5 text-amber-500 absolute left-4 top-1/2 -translate-y-1/2" />
@@ -148,10 +155,10 @@ export const InputPanel: React.FC<InputPanelProps> = ({
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between">
             <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-              Optional Reference Photo:
+              Photo Idea (Optional):
             </label>
             <span className="text-[11px] font-medium text-slate-500">
-              Real animals, bark, water, or foliage reference
+              Add a picture for inspiration
             </span>
           </div>
 
@@ -172,15 +179,15 @@ export const InputPanel: React.FC<InputPanelProps> = ({
               onDragLeave={() => setIsDragging(false)}
               onDrop={handleDrop}
               onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-5 flex items-center justify-center gap-3 cursor-pointer transition ${
+              className={`border-2 border-dashed rounded-2xl p-4 flex items-center justify-center gap-3 cursor-pointer transition ${
                 isDragging
                   ? 'border-indigo-500 bg-indigo-50'
                   : 'border-slate-300 hover:border-indigo-400 bg-white/40 hover:bg-white/70'
               }`}
             >
-              <ImageIcon className="w-5 h-5 text-slate-500" />
-              <span className="text-xs font-bold text-slate-700">
-                Click or drop a reference photo here
+              <Sparkles className="w-5 h-5 text-slate-400" />
+              <span className="text-xs font-bold text-slate-600">
+                Click or drop a picture here
               </span>
             </div>
           ) : (
@@ -197,10 +204,10 @@ export const InputPanel: React.FC<InputPanelProps> = ({
           )}
         </div>
 
-        {/* Scene Seed Starters */}
+        {/* Scene Starters */}
         <div className="flex flex-col gap-2 pt-2 border-t border-slate-200">
           <label className="text-xs font-black text-slate-700 uppercase tracking-wider">
-            Or Choose a Scene Seed Starter:
+            Or Choose a Scene:
           </label>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -218,7 +225,7 @@ export const InputPanel: React.FC<InputPanelProps> = ({
                   {ICON_MAP[preset.iconName] || <Sparkles className="w-4 h-4 text-indigo-500" />}
                 </div>
                 <div className="truncate">
-                  <h4 className="font-extrabold text-slate-900 text-xs truncate">
+                  <h4 className="font-bold text-slate-900 text-xs truncate">
                     {preset.title}
                   </h4>
                   <p className="text-[10px] text-slate-500 truncate">
@@ -237,11 +244,11 @@ export const InputPanel: React.FC<InputPanelProps> = ({
           className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-black text-sm uppercase tracking-wider rounded-2xl shadow-lg transition active:scale-95 flex items-center justify-center gap-2 mt-2"
         >
           {isLoading ? (
-            <span>Generating 3-4 Composition Variants...</span>
+            <span>Creating 4 Art Takes...</span>
           ) : (
             <>
               <Compass className="w-5 h-5" />
-              Explore Composition Variants
+              Create 4 Pictures
             </>
           )}
         </button>

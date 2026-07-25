@@ -1,4 +1,5 @@
-export type Medium = 'watercolour' | 'soft pastel' | 'pen and wash' | 'mixed';
+export type Medium = 'watercolour' | 'soft pastel' | 'pen and wash' | 'storybook';
+export type Style = Medium;
 
 export type DrawingLayer = 'construction' | 'outline' | 'detail';
 
@@ -25,12 +26,17 @@ export interface CompositionGuide {
 export interface SceneVariant {
   id: string;
   title: string;
-  pitch: string;
-  framing: string;
+  description: string;
+  pitch?: string;
+  framing?: string;
   light: string;
-  mood: string;
-  difficulty: 'approachable' | 'a stretch' | 'ambitious';
-  thumbnail_svg: string;
+  mood?: string;
+  image?: string;
+  image_url?: string;
+  imagePrompt?: string;
+  lineArtImage?: string;
+  difficulty?: 'approachable' | 'a stretch' | 'ambitious';
+  thumbnail_svg?: string;
 }
 
 export interface ValuePlan {
@@ -44,9 +50,10 @@ export interface ValuePlan {
 
 export interface PaletteSwatch {
   hex: string;
-  pigment_name: string;
-  role: string;
-  depth_plane: 'background' | 'midground' | 'foreground';
+  color_name: string;
+  pigment_name?: string;
+  role?: string;
+  depth_plane?: 'background' | 'midground' | 'foreground';
 }
 
 export interface TextureNote {
@@ -70,17 +77,20 @@ export interface SceneBrief {
   id: string;
   variant: SceneVariant;
   medium: Medium;
-  composition_guide: CompositionGuide;
-  value_plan: ValuePlan;
+  image?: string;
+  lineArtImage?: string;
+  light_note?: string;
   palette: {
     swatches: PaletteSwatch[];
-    rationale: string;
+    rationale?: string;
   };
-  technique_notes: string[];
-  texture_notes: TextureNote[];
-  watch_points: WatchPoint[];
-  edge_notes: EdgeNote[];
-  colour_temperature: string;
+  composition_guide?: CompositionGuide;
+  value_plan?: ValuePlan;
+  technique_notes?: string[];
+  texture_notes?: TextureNote[];
+  watch_points?: WatchPoint[];
+  edge_notes?: EdgeNote[];
+  colour_temperature?: string;
   createdAt: string;
   stuck_exchanges?: StuckExchange[];
 }

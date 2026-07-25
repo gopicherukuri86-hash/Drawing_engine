@@ -68,45 +68,86 @@ async function startServer() {
     throw lastError;
   }
 
+  // IMAGE HELPERS & STYLES
+  const STYLE_PROMPTS: Record<string, string> = {
+    watercolour: "watercolour illustration, visible washes and soft blooms, white paper showing through, loose wet edges",
+    "soft pastel": "soft pastel painting, visible chalky strokes, blended tones, textured paper grain",
+    "pen and wash": "pen and ink line drawing with loose watercolour washes, confident ink linework, colour sitting inside and outside the lines",
+    storybook: "children's storybook illustration, warm and characterful, hand-painted look"
+  };
+
+  const STYLE_SUFFIX = "Hand-made artwork. No text, no watermark, no border, no signature. Not a photograph. Not photorealistic. Not 3D rendered. Not digital airbrush. Painted by hand on paper.";
+
+  async function generateImageFromPrompt(
+    ai: GoogleGenAI,
+    prompt: string
+  ): Promise<string> {
+    const modelsToTry = [
+      "gemini-3.1-flash-lite-image",
+      "gemini-3.1-flash-image",
+      "gemini-2.5-flash-image"
+    ];
+
+    let lastError: any = null;
+
+    for (const mod of modelsToTry) {
+      try {
+        console.log(`Attempting image generation with model: ${mod}`);
+        const res = await ai.models.generateContent({
+          model: mod,
+          contents: { parts: [{ text: prompt }] },
+          config: {
+            imageConfig: {
+              aspectRatio: "1:1"
+            }
+          } as any
+        });
+
+        const parts = res.candidates?.[0]?.content?.parts || [];
+        for (const part of parts) {
+          if (part.inlineData) {
+            const mime = part.inlineData.mimeType || "image/png";
+            return `data:${mime};base64,${part.inlineData.data}`;
+          }
+        }
+      } catch (err: any) {
+        console.warn(`Image generation failed with model ${mod}:`, err?.message || err);
+        lastError = err;
+      }
+    }
+
+    const errMessage = lastError?.message || "Failed to generate image with Gemini image models.";
+    throw new Error(errMessage);
+  }
+
   // ═══════════════════════════════════════════
   // CALL 1 — Variants   POST /api/scene-variants
   // ═══════════════════════════════════════════
   app.post("/api/scene-variants", async (req, res) => {
     try {
       const ai = getAIClient();
-      const { idea, medium, referenceImageBase64 } = req.body;
+      const { idea, style, medium, referenceImageBase64 } = req.body;
 
       if (!idea && !referenceImageBase64) {
         res.status(400).json({ error: "Either an idea prompt or reference image must be provided" });
         return;
       }
 
-      const activeMedium = medium || "watercolour";
+      const activeStyle = style || medium || "watercolour";
+      const styleDesc = STYLE_PROMPTS[activeStyle] || STYLE_PROMPTS.watercolour;
 
-      const systemInstruction = `You are a professional art instructor for an accomplished 10-year-old artist painting/drawing in ${activeMedium}.
-Subject scope: Scenes are CHARACTER-IN-ENVIRONMENT (a creature, figure, building, boat, or focal structure inside a fully realized setting with background/midground/foreground separation and directional light).
-
-Return 3 to 4 composition variants that interpret the idea GENUINELY DIFFERENTLY — vary framing, time of day, weather, viewpoint, and mood.
+      const systemInstruction = `You are a creative art director generating 4 distinct scene takes for a 10-year-old artist.
+Return 4 genuinely different compositional takes for the scene idea: "${idea || 'Scene idea'}".
+Vary time of day, weather, viewpoint, distance, and mood across the 4 variants.
 
 Per variant:
-- title: concise descriptive title
-- pitch: exactly two sentences on what makes this version interesting
-- framing: e.g. "wide vista, low horizon", "close crop, looking up", "framed vignette"
-- light: e.g. "late afternoon backlight through mist"
-- mood: three adjectives e.g. "solitary, serene, ancient"
-- difficulty: "approachable" | "a stretch" | "ambitious"
-- thumbnail_svg: loose compositional thumbnail, 280x200 viewBox. Big simple value shapes only. Three fill tones showing depth planes: light background (#e2e8f0), mid midground (#94a3b8), dark foreground (#334155). Include focal subject silhouette shape. Do NOT use complex tiny lines.
+- id: string
+- title: short descriptive title (3-5 words)
+- description: vivid 1-2 sentence description of the visual scene, subject, background, lighting
+- light: one short sentence describing the light direction or color
+- thumbnail_svg: standalone SVG string (viewBox="0 0 280 200") with background rect, key shapes, and colors representing this take
 
-Calibrate difficulty against an artist who already handles: emitted light on a dark ground, linear and atmospheric perspective in the same picture, sustained pattern work across a large area, complementary colour schemes, reserved highlights, and architectural subjects in line and wash.
-"approachable" — a comfortable evening's work for her.
-"a stretch" — one element she has done before, pushed further.
-"ambitious" — a technique she has not attempted yet: reflections in moving water, wet fabric, night rain, figures in motion, glass, polished metal, backlit translucency.
-At least one variant in every response must be "ambitious". Do not soften subjects to make them easier.
-
-Rules:
-- Calm, technical art voice.
-- No exclamation marks. No "let's", no "cute/happy/friendly".
-- Output JSON with array "variants".`;
+Tone: Simple, warm, plain language. No jargon. No exclamation marks.`;
 
       const parts: any[] = [];
       if (referenceImageBase64) {
@@ -115,13 +156,12 @@ Rules:
           inlineData: { mimeType: "image/png", data: cleanBase64 },
         });
       }
-      parts.push({ text: `Idea: ${idea || "Character in environment scene"}. Medium: ${activeMedium}. Generate 3-4 distinct compositional variants.` });
+      parts.push({ text: `Idea: ${idea || "Scene idea"}. Style: ${activeStyle}. Generate 4 distinct scene takes.` });
 
       const response = await generateContentWithFallback(ai, {
         contents: { parts },
         config: {
           systemInstruction,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
@@ -133,14 +173,11 @@ Rules:
                   properties: {
                     id: { type: Type.STRING },
                     title: { type: Type.STRING },
-                    pitch: { type: Type.STRING },
-                    framing: { type: Type.STRING },
+                    description: { type: Type.STRING },
                     light: { type: Type.STRING },
-                    mood: { type: Type.STRING },
-                    difficulty: { type: Type.STRING, enum: ["approachable", "a stretch", "ambitious"] },
                     thumbnail_svg: { type: Type.STRING },
                   },
-                  required: ["id", "title", "pitch", "framing", "light", "mood", "difficulty", "thumbnail_svg"],
+                  required: ["id", "title", "description", "light", "thumbnail_svg"],
                 },
               },
             },
@@ -150,7 +187,28 @@ Rules:
       });
 
       const payload = JSON.parse(response.text || "{}");
-      res.json({ success: true, variants: payload.variants || [] });
+      const rawVariants = payload.variants || [];
+
+      // Append image prompts and generate real bitmap preview images for each variant
+      const variantsWithPrompts = await Promise.all(
+        rawVariants.map(async (v: any) => {
+          const imagePrompt = `${v.title}. ${v.description}. ${styleDesc}. ${STYLE_SUFFIX}`;
+          let image_url = null;
+          try {
+            image_url = await generateImageFromPrompt(ai, imagePrompt);
+          } catch (imgErr) {
+            console.warn(`Failed to generate initial image for variant "${v.title}":`, imgErr);
+          }
+          return {
+            ...v,
+            pitch: v.description,
+            imagePrompt,
+            image_url,
+          };
+        })
+      );
+
+      res.json({ success: true, variants: variantsWithPrompts });
     } catch (error: any) {
       console.error("Error generating scene variants:", error);
       const isQuota =
@@ -166,119 +224,98 @@ Rules:
   });
 
   // ═══════════════════════════════════════════
+  // CALL 1.5 — Generate Per-Variant Image
+  // ═══════════════════════════════════════════
+  app.post("/api/generate-variant-image", async (req, res) => {
+    try {
+      const ai = getAIClient();
+      const { prompt, title, style } = req.body;
+
+      if (!prompt) {
+        res.status(400).json({ error: "Image prompt is required" });
+        return;
+      }
+
+      const imageUrl = await generateImageFromPrompt(ai, prompt);
+      res.json({ success: true, image: imageUrl });
+    } catch (error: any) {
+      console.error("Error generating variant image:", error);
+      const isQuota = error?.message?.includes("quota") || error?.message?.includes("RESOURCE_EXHAUSTED") || error?.message?.includes("limit: 0");
+      const message = isQuota
+        ? "Gemini image generation models require a paid API key with billing enabled. Please select your paid API key in AI Studio."
+        : error?.message || "Failed to generate image";
+      res.status(isQuota ? 429 : 500).json({ success: false, error: message });
+    }
+  });
+
+  // ═══════════════════════════════════════════
+  // CALL 1.6 — Generate Line Art Coloring Page Image
+  // ═══════════════════════════════════════════
+  app.post("/api/generate-coloring-page", async (req, res) => {
+    try {
+      const ai = getAIClient();
+      const { prompt, title } = req.body;
+
+      if (!prompt && !title) {
+        res.status(400).json({ error: "Image prompt or title is required" });
+        return;
+      }
+
+      const lineArtPrompt = `Clean black and white line art coloring page for a painting scene titled "${title || "Art Piece"}". Subject description: ${prompt || title}. Crisp bold black outlines on pure white background. No colors, no grayscale shading, no grey gradients, printable coloring book page style for kids and adults. Uncolored template.`;
+
+      const imageUrl = await generateImageFromPrompt(ai, lineArtPrompt);
+      res.json({ success: true, image: imageUrl });
+    } catch (error: any) {
+      console.error("Error generating coloring page image:", error);
+      const isQuota = error?.message?.includes("quota") || error?.message?.includes("RESOURCE_EXHAUSTED") || error?.message?.includes("limit: 0");
+      const message = isQuota
+        ? "Gemini image generation models require a paid API key with billing enabled. Please select your paid API key in AI Studio."
+        : error?.message || "Failed to generate coloring page line art";
+      res.status(isQuota ? 429 : 500).json({ success: false, error: message });
+    }
+  });
+
+  // ═══════════════════════════════════════════
   // CALL 2 — Artist brief   POST /api/scene-brief
   // ═══════════════════════════════════════════
   app.post("/api/scene-brief", async (req, res) => {
     try {
       const ai = getAIClient();
-      const { variant, medium, referenceImageBase64 } = req.body;
+      const { variant, style, medium } = req.body;
 
       if (!variant) {
         res.status(400).json({ error: "Scene variant must be provided" });
         return;
       }
 
-      const activeMedium = medium || variant.medium || 'watercolour';
+      const activeStyle = style || medium || variant.medium || "watercolour";
+      const styleDesc = STYLE_PROMPTS[activeStyle] || STYLE_PROMPTS.watercolour;
 
-      const systemInstruction = `You are an expert art instructor providing an ARTIST BRIEF for a skilled 10-year-old artist executing a painting/drawing in ${activeMedium} on paper.
+      const imagePrompt = variant.imagePrompt || `${variant.title}. ${variant.description || variant.pitch}. ${styleDesc}. ${STYLE_SUFFIX}`;
 
-Input: Chosen composition variant: "${variant.title}" (${variant.pitch}, Light: ${variant.light}, Framing: ${variant.framing}, Mood: ${variant.mood}).
-
-Generate a full Artist Brief payload:
-
-1. composition_guide: Planning aid comparing 2 to 3 layout options for this scene.
-   - layouts: Array of 2 to 3 layout alternatives of the chosen scene on 280x200 viewBox (major masses, value blocks, focal point marker, and main directional lines only).
-     - thumbnail_svg: clean SVG code 280x200 viewBox showing simple shape blocks for major masses and directional guide lines/focal mark.
-     - label: short name for the arrangement (e.g. "low horizon, subject right", "diagonal perspective, off-center focal point").
-     - note: one sentence on what this arrangement emphasizes.
-   - focal_point: string describing the precise visual center of interest and how framing leads to it.
-   - eye_path: string describing how the eye enters and travels through the directional lines/masses.
-   - rationale: one paragraph on why the primary layout works best and what the alternatives would cost or gain.
-
-2. value_plan: Three 280x200 viewBox SVG thumbnails in greyscale (#111827 to #f9fafb fills):
-   - three_values: light, mid, dark shape blocks.
-   - five_values: expanded 5-value hierarchy.
-   - light_source_structure: final value map with light direction indicator mark (<path d="..." fill="#fef08a"/> or similar sun arrow/glow).
-   - eye_focus_note: one sentence on where the eye should land first and why.
-
-3. palette: 5-7 swatches.
-   - Each swatch: hex, pigment_name (pigment-style like "Raw Umber", "French Ultramarine", "Yellow Ochre", "Viridian", "Payne's Grey"), role in picture, depth_plane ("background" | "midground" | "foreground").
-   - rationale: two sentences on why this palette suits the stated mood (${variant.mood}). Muted and natural colors.
-
-4. technique_notes: 4-6 MEDIUM-SPECIFIC technical directives for ${activeMedium}.
-   ${activeMedium === 'pen and wash'
-     ? 'Address: 1) whether ink goes down before or after the washes and why for this particular subject; 2) where to leave line out entirely and let the wash carry the form; 3) line weight variation across depth planes; 4) how much detail the pen should carry versus the paint; 5) waterproof versus soluble ink for the desired effect.'
-     : activeMedium === 'mixed'
-     ? 'Address which two media are being combined for this scene and address the interaction between them (e.g. layering order, resist effects, paper tooth constraints, drying/fixation).'
-     : activeMedium === 'watercolour'
-     ? 'Address order of washes, reserved white paper BEFORE starting, wet-on-wet vs wet-on-dry areas, granulation/blooms, dry time dependencies, final touches.'
-     : 'Address paper tone choice, dark-to-light vs light-to-dark layering, finger/stump blending vs unblended strokes, side vs edge of stick, fixative timing.'}
-
-5. texture_notes: 4-6 material-specific texture guidance sentences for materials in this picture (e.g. water, foliage, bark, stone, scales, fur).
-
-6. watch_points: 3-5 stage/risk/prevention items for THIS picture in ${activeMedium}.
-   - Each item: stage (when in process), risk (what goes wrong), prevention (what to do instead).
-   - Cover irreversible decisions (reserved whites, first darks, paper tooth, over-blending, permanent ink lines).
-
-7. edge_notes: 3-4 items. Where edges should be hard, soft, or lost in this picture and what that does to the depth reading. Name the specific area each note refers to.
-
-8. colour_temperature: 2-3 sentences on the warm/cool structure of the scene — which plane is warm, which is cool, and where the temperature flips. Tie it to the light described in the variant.
-
-Tone: Calm, professional, technical art-instructor. No exclamation marks. No "let's", no "cute/happy/friendly".`;
-
-      const parts: any[] = [];
-      if (referenceImageBase64) {
-        const cleanBase64 = referenceImageBase64.replace(/^data:image\/\w+;base64,/, "");
-        parts.push({ inlineData: { mimeType: "image/png", data: cleanBase64 } });
+      // 1. Generate image using Gemini image models
+      let highFidImage = variant.image || null;
+      if (!highFidImage || highFidImage.length < 500) {
+        highFidImage = await generateImageFromPrompt(ai, imagePrompt);
       }
-      parts.push({ text: `Chosen Variant: ${JSON.stringify(variant)}. Medium: ${activeMedium}. Generate full artist brief.` });
+
+      // 2. Text call for Palette and 1-sentence Light summary
+      const systemInstruction = `You are an art assistant for a young 10-year-old artist painting in ${activeStyle}.
+Generate:
+1. palette: 5-6 color swatches for mixing this scene.
+   - hex: hexadecimal color string e.g. "#1e3a8a"
+   - color_name: simple color name (e.g. "deep teal", "warm sand", "dusty rose", "moss green", "pale amber"). Do NOT use technical pigment names like "Phthalo Blue".
+2. light_note: exactly ONE short sentence describing the key light source or lighting effect in the scene.`;
 
       const response = await generateContentWithFallback(ai, {
-        contents: { parts },
+        contents: { parts: [{ text: `Scene: ${variant.title}. Description: ${variant.description || variant.pitch}. Light: ${variant.light}` }] },
         config: {
           systemInstruction,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
           responseMimeType: "application/json",
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              composition_guide: {
-                type: Type.OBJECT,
-                properties: {
-                  layouts: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        thumbnail_svg: { type: Type.STRING },
-                        label: { type: Type.STRING },
-                        note: { type: Type.STRING },
-                      },
-                      required: ["thumbnail_svg", "label", "note"],
-                    },
-                  },
-                  focal_point: { type: Type.STRING },
-                  eye_path: { type: Type.STRING },
-                  rationale: { type: Type.STRING },
-                },
-                required: ["layouts", "focal_point", "eye_path", "rationale"],
-              },
-              value_plan: {
-                type: Type.OBJECT,
-                properties: {
-                  thumbnails: {
-                    type: Type.OBJECT,
-                    properties: {
-                      three_values: { type: Type.STRING },
-                      five_values: { type: Type.STRING },
-                      light_source_structure: { type: Type.STRING },
-                    },
-                    required: ["three_values", "five_values", "light_source_structure"],
-                  },
-                  eye_focus_note: { type: Type.STRING },
-                },
-                required: ["thumbnails", "eye_focus_note"],
-              },
+              light_note: { type: Type.STRING },
               palette: {
                 type: Type.OBJECT,
                 properties: {
@@ -288,56 +325,16 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
                       type: Type.OBJECT,
                       properties: {
                         hex: { type: Type.STRING },
-                        pigment_name: { type: Type.STRING },
-                        role: { type: Type.STRING },
-                        depth_plane: { type: Type.STRING, enum: ["background", "midground", "foreground"] },
+                        color_name: { type: Type.STRING },
                       },
-                      required: ["hex", "pigment_name", "role", "depth_plane"],
+                      required: ["hex", "color_name"],
                     },
                   },
-                  rationale: { type: Type.STRING },
                 },
-                required: ["swatches", "rationale"],
+                required: ["swatches"],
               },
-              technique_notes: { type: Type.ARRAY, items: { type: Type.STRING } },
-              texture_notes: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    material: { type: Type.STRING },
-                    instruction: { type: Type.STRING },
-                  },
-                  required: ["material", "instruction"],
-                },
-              },
-              watch_points: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    stage: { type: Type.STRING },
-                    risk: { type: Type.STRING },
-                    prevention: { type: Type.STRING },
-                  },
-                  required: ["stage", "risk", "prevention"],
-                },
-              },
-              edge_notes: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    area: { type: Type.STRING },
-                    treatment: { type: Type.STRING, enum: ["hard", "soft", "lost"] },
-                    reason: { type: Type.STRING },
-                  },
-                  required: ["area", "treatment", "reason"],
-                },
-              },
-              colour_temperature: { type: Type.STRING },
             },
-            required: ["composition_guide", "value_plan", "palette", "technique_notes", "texture_notes", "watch_points", "edge_notes", "colour_temperature"],
+            required: ["light_note", "palette"],
           },
         },
       });
@@ -345,17 +342,20 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
       const payload = JSON.parse(response.text || "{}");
 
       const brief = {
-        id: `brief-${Date.now()}`,
+        id: `brief-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
         variant,
-        medium: activeMedium,
-        composition_guide: payload.composition_guide,
-        value_plan: payload.value_plan,
-        palette: payload.palette,
-        technique_notes: payload.technique_notes || [],
-        texture_notes: payload.texture_notes || [],
-        watch_points: payload.watch_points || [],
-        edge_notes: payload.edge_notes || [],
-        colour_temperature: payload.colour_temperature || "",
+        medium: activeStyle,
+        image: highFidImage || variant.image || undefined,
+        light_note: payload.light_note || variant.light || "Soft directional light across the scene.",
+        palette: payload.palette || {
+          swatches: [
+            { hex: "#2d3748", color_name: "dark slate" },
+            { hex: "#4a5568", color_name: "cool shadow" },
+            { hex: "#cbd5e0", color_name: "misty gray" },
+            { hex: "#d69e2e", color_name: "warm amber" },
+            { hex: "#38a169", color_name: "leaf green" }
+          ]
+        },
         createdAt: new Date().toISOString(),
         stuck_exchanges: [],
       };

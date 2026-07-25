@@ -1,19 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { SceneBrief } from '../types';
+import { checkCapAllowed, recordImageGeneration } from '../utils/costTracker';
 import {
   Palette,
-  Eye,
-  AlertTriangle,
   HelpCircle,
   Printer,
-  Sparkles,
-  Layers,
-  BookOpen,
   Sun,
-  ShieldAlert,
-  Compass,
-  Thermometer,
-  CircleDot,
+  Sparkles,
+  Download,
+  Paintbrush,
+  FileText,
+  Loader2,
 } from 'lucide-react';
 
 interface BriefViewProps {
@@ -21,6 +18,9 @@ interface BriefViewProps {
   onOpenStuckModal: () => void;
   onPrintReference: () => void;
   onNewScene: () => void;
+  onBackToVariants?: () => void;
+  onRegenerateImage?: () => void;
+  isRegeneratingImage?: boolean;
   onSaveBrief: () => void;
   isSaved?: boolean;
 }
@@ -30,48 +30,151 @@ export const BriefView: React.FC<BriefViewProps> = ({
   onOpenStuckModal,
   onPrintReference,
   onNewScene,
+  onBackToVariants,
+  onRegenerateImage,
+  isRegeneratingImage,
   onSaveBrief,
   isSaved,
 }) => {
-  const {
-    variant,
-    medium,
-    composition_guide,
-    value_plan,
-    palette,
-    technique_notes,
-    texture_notes,
-    watch_points,
-    edge_notes,
-    colour_temperature,
-  } = brief;
+  const { variant, medium, image, light_note, palette } = brief;
+  const [activeTab, setActiveTab] = useState<'color' | 'coloring'>('color');
+  const [lineArtImage, setLineArtImage] = useState<string | null>(brief.lineArtImage || null);
+  const [isGeneratingLineArt, setIsGeneratingLineArt] = useState<boolean>(false);
+  const [lineArtError, setLineArtError] = useState<string | null>(null);
+
+  const handleFetchLineArt = async () => {
+    if (lineArtImage || isGeneratingLineArt) return;
+
+    const { allowed } = checkCapAllowed();
+    if (!allowed) {
+      setLineArtError('Daily hard cap ($0.50) reached. Click the $0.50 budget badge at the top of the screen to unlock/release the cap for today.');
+      return;
+    }
+
+    setIsGeneratingLineArt(true);
+    setLineArtError(null);
+
+    try {
+      const res = await fetch('/api/generate-coloring-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: variant.imagePrompt || `${variant.title}. ${variant.description}`,
+          title: variant.title,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success && data.image) {
+        setLineArtImage(data.image);
+        brief.lineArtImage = data.image;
+        recordImageGeneration(1);
+      } else {
+        throw new Error(data.error || 'Failed to generate coloring page.');
+      }
+    } catch (err: any) {
+      console.error('Line art generation error:', err);
+      setLineArtError(err?.message || 'Failed to generate coloring page.');
+    } finally {
+      setIsGeneratingLineArt(false);
+    }
+  };
+
+  const handleSwitchTab = (tab: 'color' | 'coloring') => {
+    setActiveTab(tab);
+    if (tab === 'coloring' && !lineArtImage) {
+      handleFetchLineArt();
+    }
+  };
+
+  const handlePrintColoringPage = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>${variant.title} - Coloring Page</title>
+          <style>
+            body { margin: 0; padding: 20px; font-family: sans-serif; text-align: center; }
+            h1 { font-size: 24px; margin-bottom: 5px; }
+            p { font-size: 14px; color: #555; margin-bottom: 20px; }
+            img { max-width: 90vw; max-height: 80vh; object-contain: fit; border: 2px solid #000; border-radius: 12px; }
+            @media print {
+              body { padding: 0; }
+              img { max-width: 100%; max-height: 90vh; border: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <h1>${variant.title}</h1>
+          <p>Uncolored Line Art Coloring Sheet • Ready to Color with Crayons, Watercolours, or Colored Pencils!</p>
+          <img src="${lineArtImage}" alt="${variant.title} Coloring Page" />
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handleDownloadImage = (imgSrc: string, filename: string) => {
+    const link = document.createElement('a');
+    link.href = imgSrc;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   return (
-    <div className="w-full max-w-6xl mx-auto flex flex-col gap-8 p-4 md:p-6 animate-fade-in pb-20">
-      {/* Top Brief Summary Banner */}
-      <div className="glass-panel p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-white/70 shadow-xl">
+    <div className="w-full max-w-4xl mx-auto flex flex-col items-center gap-8 p-4 md:p-6 animate-fade-in pb-24">
+      {/* Top Banner */}
+      <div className="w-full glass-panel p-6 rounded-3xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border border-white/70 shadow-xl">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="bg-indigo-600 text-white text-[11px] font-black px-3 py-0.5 rounded-full uppercase tracking-wider">
-              Artist Brief
+              {medium}
             </span>
-            <span className="bg-white/60 text-slate-800 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-white/80">
-              Medium: {medium}
-            </span>
-            <span className="bg-amber-100 text-amber-900 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
-              {variant.difficulty}
+            <span className="bg-amber-100 text-amber-900 text-[11px] font-bold px-2.5 py-0.5 rounded-full border border-amber-200 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-600" /> Ready to Paint & Color
             </span>
           </div>
           <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">
             {variant.title}
           </h1>
-          <p className="text-xs md:text-sm font-semibold text-slate-700 mt-1 max-w-2xl">
-            {variant.pitch}
+          <p className="text-xs md:text-sm font-medium text-slate-600 mt-1">
+            {variant.description || variant.pitch}
           </p>
         </div>
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {onBackToVariants && (
+            <button
+              onClick={onBackToVariants}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md flex items-center gap-1.5 transition active:scale-95"
+            >
+              ← Back to Takes
+            </button>
+          )}
+
+          {onRegenerateImage && (
+            <button
+              onClick={onRegenerateImage}
+              disabled={isRegeneratingImage}
+              className="px-4 py-2.5 bg-sky-500 hover:bg-sky-600 text-white font-extrabold text-xs uppercase tracking-wider rounded-full shadow-md flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${isRegeneratingImage ? 'animate-spin' : ''}`} />
+              {isRegeneratingImage ? 'Regenerating...' : 'Regenerate Picture'}
+            </button>
+          )}
+
           <button
             onClick={onOpenStuckModal}
             className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-amber-950 font-black text-xs uppercase tracking-wider rounded-full shadow-md flex items-center gap-2 transition active:scale-95 border border-amber-300"
@@ -85,7 +188,7 @@ export const BriefView: React.FC<BriefViewProps> = ({
             className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs uppercase tracking-wider rounded-full shadow-md flex items-center gap-2 transition active:scale-95"
           >
             <Printer className="w-4 h-4" />
-            Print Reference Sheet
+            Print Guide
           </button>
 
           <button
@@ -97,301 +200,171 @@ export const BriefView: React.FC<BriefViewProps> = ({
                 : 'bg-white/80 hover:bg-white text-slate-800 border border-slate-300 shadow-sm'
             }`}
           >
-            {isSaved ? 'Saved to Gallery' : 'Save Brief'}
+            {isSaved ? 'Saved' : 'Save Picture'}
           </button>
 
           <button
             onClick={onNewScene}
             className="px-3.5 py-2.5 bg-white/50 hover:bg-white text-slate-700 rounded-full font-bold text-xs border border-white/70"
           >
-            New Scene
+            New Idea
           </button>
         </div>
       </div>
 
-      {/* Main Section 1: Composition Guide comparison strip */}
-      <section className="glass-panel p-6 rounded-3xl flex flex-col gap-5 border border-white/70 shadow-lg">
-        <div className="flex items-center gap-2">
-          <Layers className="w-5 h-5 text-indigo-600" />
-          <h2 className="text-xl font-black text-slate-900">1. Composition Layout Options & Planning</h2>
-        </div>
+      {/* Mode Selector Tabs: Full Color vs Coloring Page */}
+      <div className="w-full bg-slate-200/80 p-1.5 rounded-2xl flex items-center gap-2 max-w-xl mx-auto shadow-inner border border-slate-300">
+        <button
+          onClick={() => handleSwitchTab('color')}
+          className={`flex-1 py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
+            activeTab === 'color'
+              ? 'bg-white text-slate-900 shadow-md border border-slate-200 font-black'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Paintbrush className="w-4 h-4 text-indigo-600" />
+          <span>🎨 Full Color Painting</span>
+        </button>
 
-        {/* Comparison Strip of 2-3 layouts */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {composition_guide?.layouts?.map((layout, idx) => (
-            <div
-              key={`layout-${idx}`}
-              className={`bg-white/80 rounded-2xl p-4 border flex flex-col justify-between gap-3 shadow-sm ${
-                idx === 0 ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-slate-200'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span
-                  className={`text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full ${
-                    idx === 0 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700'
-                  }`}
-                >
-                  {idx === 0 ? 'Primary Layout' : `Option ${idx + 1}`}
-                </span>
-              </div>
-
-              <div className="w-full aspect-[280/200] bg-slate-100/90 rounded-xl overflow-hidden border border-slate-200 shadow-inner flex items-center justify-center p-1">
-                <svg
-                  viewBox="0 0 280 200"
-                  className="w-full h-full object-contain select-none"
-                  dangerouslySetInnerHTML={{ __html: layout.thumbnail_svg }}
-                />
-              </div>
-
-              <div>
-                <h3 className="font-extrabold text-slate-900 text-sm">{layout.label}</h3>
-                <p className="text-xs font-medium text-slate-600 mt-1 leading-snug">{layout.note}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Planning Insights */}
-        <div className="bg-slate-900 text-slate-100 p-5 rounded-2xl flex flex-col gap-3 text-xs md:text-sm">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex flex-col gap-1">
-              <span className="text-amber-400 font-extrabold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <Compass className="w-3.5 h-3.5" /> Focal Point Alignment
-              </span>
-              <p className="font-medium text-slate-200 leading-relaxed">{composition_guide?.focal_point}</p>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <span className="text-indigo-300 font-extrabold uppercase tracking-wider text-[11px] flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Eye Path & Directional Flow
-              </span>
-              <p className="font-medium text-slate-200 leading-relaxed">{composition_guide?.eye_path}</p>
-            </div>
-          </div>
-
-          {composition_guide?.rationale && (
-            <div className="pt-3 border-t border-slate-800 text-slate-300 font-medium leading-relaxed">
-              <strong className="text-white">Composition Rationale:</strong> {composition_guide.rationale}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Main Section 2: Value Plan */}
-      <section className="glass-panel p-6 rounded-3xl flex flex-col gap-4 border border-white/70 shadow-lg">
-        <div className="flex items-center gap-2">
-          <Eye className="w-5 h-5 text-slate-700" />
-          <h2 className="text-xl font-black text-slate-900">2. Value Structure & Light Plan</h2>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* 3 Values */}
-          <div className="bg-white/70 rounded-2xl p-4 border border-white/80 flex flex-col gap-2">
-            <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
-              3 Values (Mass & Depth)
-            </span>
-            <div className="w-full aspect-[280/200] bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-              <svg
-                viewBox="0 0 280 200"
-                className="w-full h-full object-contain"
-                dangerouslySetInnerHTML={{ __html: value_plan.thumbnails.three_values }}
-              />
-            </div>
-          </div>
-
-          {/* 5 Values */}
-          <div className="bg-white/70 rounded-2xl p-4 border border-white/80 flex flex-col gap-2">
-            <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
-              5 Values (Form Hierarchy)
-            </span>
-            <div className="w-full aspect-[280/200] bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-              <svg
-                viewBox="0 0 280 200"
-                className="w-full h-full object-contain"
-                dangerouslySetInnerHTML={{ __html: value_plan.thumbnails.five_values }}
-              />
-            </div>
-          </div>
-
-          {/* Light Source Structure */}
-          <div className="bg-white/70 rounded-2xl p-4 border border-white/80 flex flex-col gap-2">
-            <span className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <Sun className="w-4 h-4 text-amber-500" />
-              Light Direction & Focal Point
-            </span>
-            <div className="w-full aspect-[280/200] bg-slate-100 rounded-xl overflow-hidden border border-slate-200">
-              <svg
-                viewBox="0 0 280 200"
-                className="w-full h-full object-contain"
-                dangerouslySetInnerHTML={{ __html: value_plan.thumbnails.light_source_structure }}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-slate-900 text-slate-100 px-5 py-3 rounded-2xl text-xs md:text-sm font-semibold flex items-start gap-2.5">
-          <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <p><strong>Focal Direction:</strong> {value_plan.eye_focus_note}</p>
-        </div>
-      </section>
-
-      {/* Main Section 3: Palette */}
-      <section className="glass-panel p-6 rounded-3xl flex flex-col gap-4 border border-white/70 shadow-lg">
-        <div className="flex items-center gap-2">
-          <Palette className="w-5 h-5 text-rose-600" />
-          <h2 className="text-xl font-black text-slate-900">3. Color Palette ({medium})</h2>
-        </div>
-
-        <p className="text-xs font-semibold text-slate-600 italic">
-          "{palette.rationale}"
-        </p>
-
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-          {palette.swatches.map((swatch, idx) => (
-            <div
-              key={`swatch-${idx}`}
-              className="bg-white/80 rounded-2xl p-3 border border-white/90 shadow-sm flex flex-col items-center text-center gap-2"
-            >
-              <div
-                className="w-12 h-12 rounded-xl shadow-inner border border-slate-300"
-                style={{ backgroundColor: swatch.hex }}
-              />
-              <div className="flex flex-col gap-0.5 w-full">
-                <span className="font-extrabold text-slate-900 text-xs truncate" title={swatch.pigment_name}>
-                  {swatch.pigment_name}
-                </span>
-                <span className="text-[10px] font-mono text-slate-500">{swatch.hex}</span>
-                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full mt-1 uppercase">
-                  {swatch.depth_plane}
-                </span>
-                <p className="text-[10px] font-medium text-slate-600 mt-1 leading-tight">
-                  {swatch.role}
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {colour_temperature && (
-          <div className="bg-amber-50/80 border border-amber-200 p-4 rounded-2xl flex flex-col gap-1">
-            <span className="text-xs font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
-              <Thermometer className="w-4 h-4 text-amber-700" />
-              Colour Temperature Structure
-            </span>
-            <p className="text-xs md:text-sm font-medium text-slate-800 leading-relaxed">
-              {colour_temperature}
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* Main Section 4: Edge Treatment Notes */}
-      {edge_notes && edge_notes.length > 0 && (
-        <section className="glass-panel p-6 rounded-3xl flex flex-col gap-4 border border-white/70 shadow-lg">
-          <div className="flex items-center gap-2">
-            <CircleDot className="w-5 h-5 text-indigo-600" />
-            <h2 className="text-xl font-black text-slate-900">4. Edge Treatment & Depth Reading</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {edge_notes.map((edge, idx) => (
-              <div key={`edge-${idx}`} className="bg-white/80 p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-black text-slate-900">{edge.area}</span>
-                  <span
-                    className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
-                      edge.treatment === 'hard'
-                        ? 'bg-slate-900 text-white'
-                        : edge.treatment === 'soft'
-                        ? 'bg-indigo-100 text-indigo-900 border border-indigo-200'
-                        : 'bg-amber-100 text-amber-900 border border-amber-200'
-                    }`}
-                  >
-                    {edge.treatment} edge
-                  </span>
-                </div>
-                <p className="text-xs font-medium text-slate-700 leading-snug">{edge.reason}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Main Section 5 & 6: Technique & Texture Notes */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Technique Notes */}
-        <section className="glass-panel p-6 rounded-3xl flex flex-col gap-3 border border-white/70 shadow-lg">
-          <div className="flex items-center gap-2 text-indigo-900">
-            <BookOpen className="w-5 h-5" />
-            <h2 className="text-lg font-black">5. Technique Directives ({medium})</h2>
-          </div>
-          <ul className="flex flex-col gap-2.5">
-            {technique_notes.map((note, idx) => (
-              <li key={`tech-${idx}`} className="text-xs font-medium text-slate-800 flex items-start gap-2.5 bg-white/60 p-3 rounded-xl border border-white/70">
-                <span className="w-5 h-5 rounded-full bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center shrink-0">
-                  {idx + 1}
-                </span>
-                <span className="leading-relaxed">{note}</span>
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {/* Texture Notes */}
-        <section className="glass-panel p-6 rounded-3xl flex flex-col gap-3 border border-white/70 shadow-lg">
-          <div className="flex items-center gap-2 text-emerald-900">
-            <Layers className="w-5 h-5" />
-            <h2 className="text-lg font-black">6. Material Texture Execution</h2>
-          </div>
-          <div className="flex flex-col gap-2.5">
-            {texture_notes.map((tex, idx) => (
-              <div key={`tex-${idx}`} className="bg-white/60 p-3 rounded-xl border border-white/70 flex flex-col gap-1">
-                <span className="text-xs font-black text-emerald-800 uppercase tracking-wider">
-                  {tex.material}
-                </span>
-                <p className="text-xs font-medium text-slate-800 leading-relaxed">
-                  {tex.instruction}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
+        <button
+          onClick={() => handleSwitchTab('coloring')}
+          className={`flex-1 py-3 px-4 rounded-xl font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition ${
+            activeTab === 'coloring'
+              ? 'bg-white text-slate-900 shadow-md border border-slate-200 font-black'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <FileText className="w-4 h-4 text-amber-600" />
+          <span>🖍️ Coloring Page (Line Art)</span>
+        </button>
       </div>
 
-      {/* Main Section 7: Watch Points */}
-      <section className="glass-panel p-6 rounded-3xl flex flex-col gap-4 border border-rose-200/60 shadow-lg bg-rose-50/20">
-        <div className="flex items-center gap-2 text-rose-900">
-          <ShieldAlert className="w-5 h-5 text-rose-600" />
-          <h2 className="text-xl font-black">7. Critical Watch Points (Avoid Irreversible Mistakes)</h2>
-        </div>
+      {/* Main Artwork Display Container */}
+      <div className="w-full bg-white rounded-3xl p-4 md:p-6 shadow-2xl border border-slate-200/80 flex flex-col items-center gap-4 relative">
+        {/* TAB 1: Full Color Painting View */}
+        {activeTab === 'color' && (
+          <>
+            {image ? (
+              <div className="w-full max-h-[70vh] rounded-2xl overflow-hidden bg-slate-100 flex items-center justify-center shadow-inner relative group">
+                <img
+                  src={image}
+                  alt={variant.title}
+                  className="w-full h-full object-contain max-h-[70vh] select-none"
+                />
+                <button
+                  onClick={() => handleDownloadImage(image, `${variant.title}-full-color.png`)}
+                  className="absolute bottom-4 right-4 bg-slate-900/80 hover:bg-slate-900 text-white px-4 py-2 rounded-full font-bold text-xs flex items-center gap-1.5 shadow-lg backdrop-blur-md opacity-90 hover:opacity-100 transition"
+                >
+                  <Download className="w-3.5 h-3.5" /> Download Full Color
+                </button>
+              </div>
+            ) : (
+              <div className="w-full h-80 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 font-medium">
+                Generating artwork...
+              </div>
+            )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {watch_points.map((wp, idx) => (
-            <div key={`wp-${idx}`} className="bg-white/90 rounded-2xl p-4 border border-rose-200 shadow-sm flex flex-col gap-2">
-              <span className="text-[11px] font-black text-rose-700 uppercase tracking-wider bg-rose-100 px-2.5 py-0.5 rounded-full w-fit">
-                Stage: {wp.stage}
-              </span>
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-black text-slate-900 flex items-center gap-1">
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                  Risk:
-                </span>
-                <p className="text-xs font-medium text-rose-950 leading-relaxed">
-                  {wp.risk}
-                </p>
+            {/* Light Note */}
+            {light_note && (
+              <div className="w-full bg-amber-50/80 border border-amber-200/80 p-3.5 rounded-2xl flex items-center gap-2.5 text-xs md:text-sm font-medium text-slate-800">
+                <Sun className="w-4 h-4 text-amber-600 shrink-0" />
+                <span><strong>Lighting tip:</strong> {light_note}</span>
               </div>
-              <div className="flex flex-col gap-1 pt-2 border-t border-slate-100">
-                <span className="text-xs font-black text-emerald-800">
-                  Prevention:
-                </span>
-                <p className="text-xs font-semibold text-slate-800 leading-relaxed">
-                  {wp.prevention}
-                </p>
+            )}
+          </>
+        )}
+
+        {/* TAB 2: Printable Line Art Coloring Page View */}
+        {activeTab === 'coloring' && (
+          <div className="w-full flex flex-col items-center gap-4">
+            <div className="w-full bg-amber-50/80 border border-amber-200 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-amber-950">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
+                <div>
+                  <h3 className="font-extrabold text-sm sm:text-base">Printable Coloring Sheet</h3>
+                  <p className="text-xs text-amber-800 font-medium">
+                    Clean black-and-white outlines ready to print out and color with crayons, watercolors, or pencils!
+                  </p>
+                </div>
               </div>
+
+              {lineArtImage && (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={handlePrintColoringPage}
+                    className="px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs rounded-full shadow-md flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Printer className="w-4 h-4" />
+                    Print Coloring Sheet
+                  </button>
+
+                  <button
+                    onClick={() => handleDownloadImage(lineArtImage, `${variant.title}-coloring-sheet.png`)}
+                    className="px-3.5 py-2.5 bg-white hover:bg-slate-100 text-slate-800 font-bold text-xs border border-slate-300 rounded-full shadow-sm flex items-center gap-1.5 active:scale-95"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download
+                  </button>
+                </div>
+              )}
             </div>
-          ))}
+
+            {/* Coloring Page Image or Loader */}
+            {isGeneratingLineArt ? (
+              <div className="w-full h-96 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-3 p-6 text-center text-slate-600">
+                <Loader2 className="w-8 h-8 animate-spin text-amber-600" />
+                <span className="font-bold text-sm">Generating clean black-and-white outline page...</span>
+                <span className="text-xs text-slate-500">Creating printable line art for coloring.</span>
+              </div>
+            ) : lineArtError ? (
+              <div className="w-full p-6 bg-rose-50 border border-rose-200 rounded-2xl text-rose-800 text-center flex flex-col items-center gap-3">
+                <p className="font-bold text-sm">{lineArtError}</p>
+                <button
+                  onClick={handleFetchLineArt}
+                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-full"
+                >
+                  Try Again
+                </button>
+              </div>
+            ) : lineArtImage ? (
+              <div className="w-full max-h-[75vh] rounded-2xl overflow-hidden bg-white p-4 border-2 border-slate-200 flex items-center justify-center shadow-lg">
+                <img
+                  src={lineArtImage}
+                  alt={`${variant.title} Coloring Page`}
+                  className="w-full h-full object-contain max-h-[70vh] select-none"
+                />
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      {/* Colour Palette Strip */}
+      {palette && palette.swatches && palette.swatches.length > 0 && (
+        <div className="w-full glass-panel p-6 rounded-3xl flex flex-col gap-3 border border-white/70 shadow-lg">
+          <div className="flex items-center gap-2 text-rose-800">
+            <Palette className="w-5 h-5 text-rose-600" />
+            <h2 className="text-lg font-black text-slate-900">Colour Palette Guide</h2>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {palette.swatches.map((swatch, idx) => (
+              <div
+                key={`swatch-${idx}`}
+                className="bg-white/80 rounded-2xl p-3 border border-white/90 shadow-sm flex flex-col items-center text-center gap-2"
+              >
+                <div
+                  className="w-12 h-12 rounded-xl shadow-inner border border-slate-300"
+                  style={{ backgroundColor: swatch.hex }}
+                />
+                <span className="font-bold text-slate-900 text-xs capitalize truncate w-full" title={swatch.color_name || swatch.pigment_name}>
+                  {swatch.color_name || swatch.pigment_name || 'color'}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </section>
+      )}
 
       {/* Floating Bottom Help Button */}
       <div className="fixed bottom-6 right-6 z-40">
@@ -400,7 +373,7 @@ export const BriefView: React.FC<BriefViewProps> = ({
           className="px-6 py-3.5 bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-sm rounded-full shadow-2xl flex items-center gap-2 border-2 border-white transition active:scale-95"
         >
           <HelpCircle className="w-5 h-5" />
-          I'm Stuck on this Painting
+          I'm Stuck
         </button>
       </div>
     </div>

@@ -53,6 +53,36 @@ export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
           )}
         </div>
 
+        {/* Section 0: Artwork & Line Art References */}
+        {brief?.image && (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 border-b border-slate-200 pb-1">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <h2 className="text-base font-black text-slate-900 uppercase tracking-wide">
+                Artwork Reference & Coloring Template
+              </h2>
+            </div>
+
+            <div className={`grid ${brief.lineArtImage ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-4`}>
+              <div className="border border-slate-300 rounded-2xl p-3 bg-white flex flex-col items-center gap-2">
+                <span className="text-xs font-black uppercase text-slate-800">Full Color Painting</span>
+                <div className="w-full aspect-square bg-slate-100 rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center">
+                  <img src={brief.image} alt="Full Color Artwork" className="w-full h-full object-contain" />
+                </div>
+              </div>
+
+              {brief.lineArtImage && (
+                <div className="border border-slate-300 rounded-2xl p-3 bg-white flex flex-col items-center gap-2">
+                  <span className="text-xs font-black uppercase text-slate-800">Line Art Coloring Page</span>
+                  <div className="w-full aspect-square bg-white rounded-xl overflow-hidden border border-slate-200 flex items-center justify-center p-2">
+                    <img src={brief.lineArtImage} alt="Coloring Sheet Outline" className="w-full h-full object-contain" />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Section 1: Composition Layout Alternatives */}
         {brief?.composition_guide?.layouts && (
           <div className="flex flex-col gap-3">

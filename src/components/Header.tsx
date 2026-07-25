@@ -1,5 +1,6 @@
 import React from 'react';
 import { Palette, BookOpen, BookmarkPlus, Sparkles, PlusCircle } from 'lucide-react';
+import { CostTrackerBadge } from './CostTrackerBadge';
 
 interface HeaderProps {
   onOpenGallery: () => void;
@@ -45,6 +46,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-3">
+          <CostTrackerBadge />
+
           {canSave && (
             <button
               onClick={onSaveCurrent}
