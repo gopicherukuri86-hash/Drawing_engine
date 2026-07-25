@@ -28,6 +28,46 @@ async function startServer() {
     });
   };
 
+  async function generateContentWithFallback(
+    ai: GoogleGenAI,
+    params: { contents: any; config: any }
+  ) {
+    const attempts = [
+      { model: "gemini-3.6-flash", config: params.config },
+      { model: "gemini-flash-latest", config: { ...params.config, thinkingConfig: undefined } },
+      { model: "gemini-3.1-flash-lite", config: { ...params.config, thinkingConfig: undefined } },
+    ];
+
+    let lastError: any = null;
+    for (let i = 0; i < attempts.length; i++) {
+      try {
+        const res = await ai.models.generateContent({
+          model: attempts[i].model,
+          contents: params.contents,
+          config: attempts[i].config,
+        });
+        return res;
+      } catch (err: any) {
+        lastError = err;
+        const errMsg = String(err?.message || err);
+        const isQuotaOr429 =
+          err?.status === 429 ||
+          errMsg.includes("429") ||
+          errMsg.includes("RESOURCE_EXHAUSTED") ||
+          errMsg.includes("quota");
+        if (isQuotaOr429 && i < attempts.length - 1) {
+          console.warn(
+            `Model ${attempts[i].model} hit rate limit / 429. Falling back to ${attempts[i + 1].model}...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
+  }
+
   // ═══════════════════════════════════════════
   // CALL 1 — Variants   POST /api/scene-variants
   // ═══════════════════════════════════════════
@@ -77,8 +117,7 @@ Rules:
       }
       parts.push({ text: `Idea: ${idea || "Character in environment scene"}. Medium: ${activeMedium}. Generate 3-4 distinct compositional variants.` });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+      const response = await generateContentWithFallback(ai, {
         contents: { parts },
         config: {
           systemInstruction,
@@ -114,7 +153,15 @@ Rules:
       res.json({ success: true, variants: payload.variants || [] });
     } catch (error: any) {
       console.error("Error generating scene variants:", error);
-      res.status(500).json({ success: false, error: error?.message || "Failed to generate scene variants" });
+      const isQuota =
+        error?.status === 429 ||
+        error?.message?.includes("429") ||
+        error?.message?.includes("RESOURCE_EXHAUSTED") ||
+        error?.message?.includes("quota");
+      const message = isQuota
+        ? "Gemini API rate limit reached (Quota Exceeded). Please wait ~30-50 seconds and try again."
+        : error?.message || "Failed to generate scene variants";
+      res.status(isQuota ? 429 : 500).json({ success: false, error: message });
     }
   });
 
@@ -186,8 +233,7 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
       }
       parts.push({ text: `Chosen Variant: ${JSON.stringify(variant)}. Medium: ${activeMedium}. Generate full artist brief.` });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+      const response = await generateContentWithFallback(ai, {
         contents: { parts },
         config: {
           systemInstruction,
@@ -317,7 +363,15 @@ Tone: Calm, professional, technical art-instructor. No exclamation marks. No "le
       res.json({ success: true, brief });
     } catch (error: any) {
       console.error("Error generating scene brief:", error);
-      res.status(500).json({ success: false, error: error?.message || "Failed to generate scene brief" });
+      const isQuota =
+        error?.status === 429 ||
+        error?.message?.includes("429") ||
+        error?.message?.includes("RESOURCE_EXHAUSTED") ||
+        error?.message?.includes("quota");
+      const message = isQuota
+        ? "Gemini API rate limit reached (Quota Exceeded). Please wait ~30-50 seconds and try again."
+        : error?.message || "Failed to generate scene brief";
+      res.status(isQuota ? 429 : 500).json({ success: false, error: message });
     }
   });
 
@@ -360,8 +414,7 @@ Rules:
       }
       parts.push({ text: `Painting: ${brief?.variant?.title || 'Artwork'}. Medium: ${activeMedium}. Issue: ${problem}. Diagnose and provide recovery steps.` });
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.6-flash",
+      const response = await generateContentWithFallback(ai, {
         contents: { parts },
         config: {
           systemInstruction,
@@ -385,7 +438,15 @@ Rules:
       res.json({ success: true, ...payload });
     } catch (error: any) {
       console.error("Error diagnosing stuck problem:", error);
-      res.status(500).json({ success: false, error: error?.message || "Failed to diagnose stuck issue" });
+      const isQuota =
+        error?.status === 429 ||
+        error?.message?.includes("429") ||
+        error?.message?.includes("RESOURCE_EXHAUSTED") ||
+        error?.message?.includes("quota");
+      const message = isQuota
+        ? "Gemini API rate limit reached (Quota Exceeded). Please wait ~30-50 seconds and try again."
+        : error?.message || "Failed to diagnose stuck issue";
+      res.status(isQuota ? 429 : 500).json({ success: false, error: message });
     }
   });
 
