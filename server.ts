@@ -40,27 +40,35 @@ async function startServer() {
         },
       });
 
-      const systemInstruction = `You are an expert, friendly art teacher for young children. Your task is to act as a "Reconstructive Drawing Engine."
-The user will provide either a text idea (e.g., "a flying pirate ship") or upload an image (a photograph, a toy, or a rough scribble).
+      const stepCountMap = {
+        easy: "3-4 steps",
+        standard: "5-6 steps",
+        detailed: "7-8 steps",
+      };
+      const targetStepCount = stepCountMap[complexity as 'easy' | 'standard' | 'detailed'] || "5-6 steps";
 
-Your job is to visually deconstruct the subject into basic geometric shapes (circles, ovals, simple lines) that a 5-year-old can easily draw, and output a complete step-by-step tutorial in a single payload.
+      const systemInstruction = `You are an expert, friendly art teacher for young children, acting as a "Reconstructive Drawing Engine."
 
-**Output Format:**
-You must output a single JSON array containing a dynamic number of step objects. Use as many or as few steps as necessary based on the complexity of the drawing (typically between 2 to 8 steps).
+INPUT: a text idea ("a flying pirate ship") or an image (photo, toy, scribble).
+GOAL: deconstruct the subject into basic shapes a 5-year-old can draw, and return a full step-by-step tutorial in one payload.
+Target step count: ${targetStepCount}.
 
-Each object in the array must contain exactly these three keys:
-1. "step_number": (Integer) The sequential step number starting from 1.
-2. "instruction": (String) A kid-friendly, enthusiastic instruction (e.g., "Let's draw a big round circle for the teddy bear's tummy!").
-3. "svg_code": (String) Clean SVG tags or paths for this current step's new strokes ONLY (e.g., <path d="M..." stroke="#1e293b" stroke-width="8" stroke-linecap="round" fill="none" /> or <circle cx="250" cy="250" r="80" stroke="#1e293b" stroke-width="8" fill="none" />).
+## 1. Plan before you draw
+First fill "layout_plan": a compact text layout of the FINAL drawing on a 500x500 grid, listing every shape with exact center and size. Example: "head: circle cx 250 cy 160 r 80 | body: ellipse cx 250 cy 330 rx 110 ry 130 | left ear: circle cx 185 cy 95 r 35"
+Every coordinate you emit later MUST come from this plan. Never invent new coordinates inside the steps.
 
-**Strict SVG Rules:**
-* The canvas must be a standard 500x500 viewBox (\`<svg viewBox="0 0 500 500">\`).
-* Mentally map the entire final drawing onto this 500x500 grid FIRST, centered nicely, so every coordinate in every step perfectly aligns and builds upon the previous steps.
-* Do not redraw previous shapes in the current step's \`svg_code\`. Each step should ONLY contain the new paths being drawn in that step.
-* Make sure every element has explicit styling like \`stroke="#1e293b"\` (or bold kid-friendly outline color), \`stroke-width="8"\` (or 6-10px thick for kids), \`stroke-linecap="round"\`, \`stroke-linejoin="round"\`, and \`fill="none"\` (unless coloring in a small accent like an eye or nose).
-* In each step's \`svg_code\`, wrap the shapes or elements so they render correctly when appended inside a single standard \`<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">\` container on the frontend.
-* Complexity preference: ${complexity || 'standard'} steps (2-8 steps max).
-* Keep lines thick, smooth, bold, and easy for a child to copy.`;
+## 2. Emit steps
+Each step introduces ONLY the new shapes for that step. Never repeat shapes from earlier steps. Order big-to-small: large body shapes first, small details (eyes, whiskers) last.
+
+## Geometry rules (strict)
+- Canvas is viewBox="0 0 500 500". Keep ALL geometry between 40 and 460 on both axes so nothing clips at the edges.
+- Allowed elements ONLY: <circle>, <ellipse>, <line>, <rect>, <polyline>, <polygon>, and <path> limited to M / L / Q commands.
+- Forbidden: C / S / A curve commands, transforms, groups, CSS, animations.
+- Every element must carry stroke="#1e293b" (or a bold kid-friendly colour), stroke-width="8", stroke-linecap="round", stroke-linejoin="round". Use fill="none" except for small accents like eyes and noses.
+- Do NOT include the <svg> wrapper. Emit bare child elements only. The app handles all animation.
+
+## Instructions
+"instruction" = one enthusiastic kid-friendly sentence that names the shape, e.g. "Let's draw a big round circle for the teddy bear's tummy!"`;
 
       const parts: any[] = [];
 
@@ -86,41 +94,58 @@ Each object in the array must contain exactly these three keys:
         contents: { parts },
         config: {
           systemInstruction,
-          temperature: 0.2,
+          thinkingConfig: {
+            thinkingLevel: 'high' as any,
+          },
           responseMimeType: "application/json",
           responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                step_number: { type: Type.INTEGER, description: "Sequential step integer starting at 1" },
-                instruction: { type: Type.STRING, description: "Enthusiastic kid-friendly instruction" },
-                svg_code: { type: Type.STRING, description: "Clean valid SVG elements for this step only" },
+            type: Type.OBJECT,
+            properties: {
+              subject: { type: Type.STRING, description: "Subject of drawing" },
+              layout_plan: { type: Type.STRING, description: "Compact text spatial layout plan on 500x500 grid" },
+              steps: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    step_number: { type: Type.INTEGER, description: "Sequential step integer starting at 1" },
+                    instruction: { type: Type.STRING, description: "Enthusiastic kid-friendly instruction" },
+                    svg_code: { type: Type.STRING, description: "Clean valid SVG elements for this step only" },
+                  },
+                  required: ["step_number", "instruction", "svg_code"],
+                },
               },
-              required: ["step_number", "instruction", "svg_code"],
             },
+            required: ["subject", "layout_plan", "steps"],
           },
         },
       });
 
-      const rawText = response.text || "[]";
-      let steps = [];
+      const rawText = response.text || "{}";
+      let payload: any = {};
       try {
-        steps = JSON.parse(rawText);
+        payload = JSON.parse(rawText);
       } catch (err) {
         console.error("Failed to parse Gemini output as JSON:", rawText);
         // Fallback or retry format cleanup
-        const jsonMatch = rawText.match(/\[[\s\S]*\]/);
+        const jsonMatch = rawText.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          steps = JSON.parse(jsonMatch[0]);
+          payload = JSON.parse(jsonMatch[0]);
         } else {
-          throw new Error("Could not extract valid JSON array from model output.");
+          throw new Error("Could not extract valid JSON object from model output.");
         }
       }
+
+      if (payload.layout_plan) {
+        console.log("Layout Plan:", payload.layout_plan);
+      }
+
+      const steps = payload.steps || [];
 
       res.json({
         success: true,
         steps,
+        layoutPlan: payload.layout_plan,
       });
     } catch (error: any) {
       console.error("Error generating drawing tutorial:", error);

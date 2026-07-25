@@ -4,6 +4,7 @@ import { Eraser, RotateCcw, Download, Sparkles, Pencil, Layers } from 'lucide-re
 interface DrawAlongCanvasProps {
   guideSvgContent?: React.ReactNode;
   showGuideOverlay?: boolean;
+  tutorialId?: string;
 }
 
 const COLOR_PALETTE = [
@@ -27,6 +28,7 @@ const STROKE_SIZES = [
 export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
   guideSvgContent,
   showGuideOverlay = true,
+  tutorialId,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -47,12 +49,17 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
     canvas.width = 500;
     canvas.height = 500;
 
-    // Fill white background initially
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 500, 500);
+    // Transparent canvas (wrapper div handles background)
+    ctx.clearRect(0, 0, 500, 500);
 
     saveHistoryState();
   }, []);
+
+  // Clear canvas on tutorial change
+  useEffect(() => {
+    if (!tutorialId) return;
+    clearCanvas();
+  }, [tutorialId]);
 
   const saveHistoryState = () => {
     const canvas = canvasRef.current;
@@ -60,7 +67,7 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const imageData = ctx.getImageData(0, 0, 500, 500);
-    setHistory((prev) => [...prev.slice(-15), imageData]); // keep last 15 states
+    setHistory((prev) => [...prev.slice(-7), imageData]); // keep max 8 states (~8MB)
   };
 
   const handleUndo = () => {
@@ -84,8 +91,7 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, 500, 500);
+    ctx.clearRect(0, 0, 500, 500);
     saveHistoryState();
   };
 
@@ -99,7 +105,7 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
 
     if ('touches' in e) {
       clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
+      clientY = e.clientY ? e.clientY : e.touches[0].clientY;
     } else {
       clientX = e.clientX;
       clientY = e.clientY;
@@ -126,7 +132,8 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
     ctx.moveTo(pos.x, pos.y);
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = isEraser ? '#ffffff' : color;
+    ctx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
+    ctx.strokeStyle = color;
     ctx.lineWidth = strokeSize;
 
     setIsDrawing(true);
@@ -155,9 +162,21 @@ export const DrawAlongCanvas: React.FC<DrawAlongCanvasProps> = ({
   const handleDownloadDrawing = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+
+    // Composite drawing onto a white background canvas so exported PNG is opaque
+    const out = document.createElement('canvas');
+    out.width = 500;
+    out.height = 500;
+    const octx = out.getContext('2d');
+    if (!octx) return;
+
+    octx.fillStyle = '#ffffff';
+    octx.fillRect(0, 0, 500, 500);
+    octx.drawImage(canvas, 0, 0);
+
     const link = document.createElement('a');
     link.download = `my-drawing-${Date.now()}.png`;
-    link.href = canvas.toDataURL('image/png');
+    link.href = out.toDataURL('image/png');
     link.click();
   };
 

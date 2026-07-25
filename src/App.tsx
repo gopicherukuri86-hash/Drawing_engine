@@ -8,6 +8,7 @@ import { SavedGalleryModal } from './components/SavedGalleryModal';
 import { SAMPLE_DINOSAUR_STEPS } from './data/presets';
 import { DrawingStep, DrawingTutorial, DrawingPreset } from './types';
 import { Sparkles, Play, Grid, Edit3, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { sanitizeSvg } from './utils/sanitizeSvg';
 
 export default function App() {
   const [currentTutorial, setCurrentTutorial] = useState<DrawingTutorial>({
@@ -23,6 +24,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'stage' | 'grid'>('stage');
   const [activeStageTab, setActiveStageTab] = useState<'guide' | 'practice' | 'split'>('split');
   const [autoPlay, setAutoPlay] = useState<boolean>(false);
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successToast, setSuccessToast] = useState<string | null>(null);
@@ -53,22 +55,26 @@ export default function App() {
     }
   };
 
-  // Auto-play timer effect
+  const handleStepAutoAdvance = () => {
+    setCurrentStepIndex((prev) => {
+      if (prev >= currentTutorial.steps.length - 1) {
+        setAutoPlay(false);
+        return prev;
+      }
+      return prev + 1;
+    });
+  };
+
+  // Auto-play timer effect (active ONLY when voice is disabled to avoid double advancing)
   useEffect(() => {
     let timer: NodeJS.Timeout;
-    if (autoPlay && currentTutorial.steps.length > 0) {
+    if (autoPlay && !voiceEnabled && currentTutorial.steps.length > 0) {
       timer = setInterval(() => {
-        setCurrentStepIndex((prev) => {
-          if (prev >= currentTutorial.steps.length - 1) {
-            setAutoPlay(false);
-            return prev;
-          }
-          return prev + 1;
-        });
+        handleStepAutoAdvance();
       }, 4000); // 4 seconds per step
     }
     return () => clearInterval(timer);
-  }, [autoPlay, currentTutorial]);
+  }, [autoPlay, voiceEnabled, currentTutorial]);
 
   // Handle generating new tutorial via API
   const handleGenerate = async (data: {
@@ -172,10 +178,12 @@ export default function App() {
   const isCurrentSaved = savedTutorials.some((t) => t.id === currentTutorial.id);
 
   // Accumulated SVGs up to currentStepIndex for Draw Along Pad overlay
-  const currentAccumulatedSvgCodes = currentTutorial.steps
-    .slice(0, currentStepIndex + 1)
-    .map((s) => s.svg_code)
-    .join('\n');
+  const currentAccumulatedSvgCodes = sanitizeSvg(
+    currentTutorial.steps
+      .slice(0, currentStepIndex + 1)
+      .map((s) => s.svg_code)
+      .join('\n')
+  );
 
   return (
     <div className="min-h-screen text-slate-800 flex flex-col font-sans relative overflow-x-hidden selection:bg-indigo-500 selection:text-white">
@@ -305,10 +313,13 @@ export default function App() {
                   title={currentTutorial.title}
                   autoPlay={autoPlay}
                   onToggleAutoPlay={() => setAutoPlay(!autoPlay)}
-                  playSpeedMs={4000}
+                  voiceEnabled={voiceEnabled}
+                  onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
+                  onAutoAdvance={handleStepAutoAdvance}
                 />
 
                 <DrawAlongCanvas
+                  tutorialId={currentTutorial.id}
                   guideSvgContent={
                     <g dangerouslySetInnerHTML={{ __html: currentAccumulatedSvgCodes }} />
                   }
@@ -324,12 +335,15 @@ export default function App() {
                   title={currentTutorial.title}
                   autoPlay={autoPlay}
                   onToggleAutoPlay={() => setAutoPlay(!autoPlay)}
-                  playSpeedMs={4000}
+                  voiceEnabled={voiceEnabled}
+                  onToggleVoice={() => setVoiceEnabled(!voiceEnabled)}
+                  onAutoAdvance={handleStepAutoAdvance}
                 />
               </div>
             ) : (
               <div className="max-w-2xl mx-auto w-full">
                 <DrawAlongCanvas
+                  tutorialId={currentTutorial.id}
                   guideSvgContent={
                     <g dangerouslySetInnerHTML={{ __html: currentAccumulatedSvgCodes }} />
                   }

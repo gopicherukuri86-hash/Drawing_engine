@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DrawingTutorial } from '../types';
 import { X, Trash2, Play, Sparkles, BookOpen } from 'lucide-react';
+import { sanitizeSvg } from '../utils/sanitizeSvg';
 
 interface SavedGalleryModalProps {
   isOpen: boolean;
@@ -68,7 +69,7 @@ export const SavedGalleryModal: React.FC<SavedGalleryModalProps> = ({
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filtered.map((tutorial) => {
-                const finalStepSvg = tutorial.steps.map((s) => s.svg_code).join('\n');
+                const finalStepSvg = sanitizeSvg(tutorial.steps.map((s) => s.svg_code).join('\n'));
                 return (
                   <div
                     key={tutorial.id}

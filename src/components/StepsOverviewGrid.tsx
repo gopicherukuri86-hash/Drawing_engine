@@ -1,6 +1,7 @@
 import React from 'react';
 import { DrawingStep } from '../types';
 import { Printer, ExternalLink, Sparkles } from 'lucide-react';
+import { sanitizeSvg } from '../utils/sanitizeSvg';
 
 interface StepsOverviewGridProps {
   steps: DrawingStep[];
@@ -51,10 +52,12 @@ export const StepsOverviewGrid: React.FC<StepsOverviewGridProps> = ({
       <div className="p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {steps.map((step, index) => {
           // Accumulate SVGs up to current step
-          const accumulatedSvgCodes = steps
-            .slice(0, index + 1)
-            .map((s) => s.svg_code)
-            .join('\n');
+          const accumulatedSvgCodes = sanitizeSvg(
+            steps
+              .slice(0, index + 1)
+              .map((s) => s.svg_code)
+              .join('\n')
+          );
 
           return (
             <div

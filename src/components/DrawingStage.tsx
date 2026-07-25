@@ -2,6 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { DrawingStep } from '../types';
 import { Play, Pause, SkipBack, SkipForward, RefreshCw, Volume2, VolumeX, Eye, Sparkles } from 'lucide-react';
 import { speakInstruction, stopSpeech, isSpeechSupported } from '../utils/speech';
+import { sanitizeSvg } from '../utils/sanitizeSvg';
 
 interface DrawingStageProps {
   steps: DrawingStep[];
@@ -10,8 +11,19 @@ interface DrawingStageProps {
   title?: string;
   autoPlay: boolean;
   onToggleAutoPlay: () => void;
-  playSpeedMs: number;
+  playSpeedMs?: number;
+  voiceEnabled?: boolean;
+  onToggleVoice?: () => void;
+  onAutoAdvance?: () => void;
 }
+
+const withPathLength = (svg: string) => {
+  const sanitized = sanitizeSvg(svg);
+  return sanitized.replace(
+    /<(path|circle|ellipse|line|polyline|polygon|rect)(?![^>]*\bpathLength=)\b/g,
+    '<$1 pathLength="1"'
+  );
+};
 
 export const DrawingStage: React.FC<DrawingStageProps> = ({
   steps,
@@ -20,12 +32,13 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
   title,
   autoPlay,
   onToggleAutoPlay,
-  playSpeedMs,
+  voiceEnabled = true,
+  onToggleVoice,
+  onAutoAdvance,
 }) => {
   const [highlightNewStroke, setHighlightNewStroke] = useState(true);
   const [showGuideLines, setShowGuideLines] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
-  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [animationKey, setAnimationKey] = useState(0);
 
   const currentStep = steps[currentStepIndex];
@@ -36,12 +49,15 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
       setIsSpeaking(true);
       speakInstruction(currentStep.instruction, () => {
         setIsSpeaking(false);
+        if (autoPlay && onAutoAdvance) {
+          onAutoAdvance();
+        }
       });
     } else {
       stopSpeech();
       setIsSpeaking(false);
     }
-  }, [currentStepIndex, currentStep, voiceEnabled]);
+  }, [currentStepIndex, currentStep, voiceEnabled, autoPlay]);
 
   // Clean speech when unmounted
   useEffect(() => {
@@ -53,7 +69,12 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
     setAnimationKey((prev) => prev + 1);
     if (currentStep && voiceEnabled) {
       setIsSpeaking(true);
-      speakInstruction(currentStep.instruction, () => setIsSpeaking(false));
+      speakInstruction(currentStep.instruction, () => {
+        setIsSpeaking(false);
+        if (autoPlay && onAutoAdvance) {
+          onAutoAdvance();
+        }
+      });
     }
   };
 
@@ -65,34 +86,30 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
       <>
         <style>{`
           @keyframes strokeDraw {
-            from {
-              stroke-dashoffset: 1200;
-            }
             to {
               stroke-dashoffset: 0;
             }
           }
-          .anim-new-stroke path,
-          .anim-new-stroke circle,
-          .anim-new-stroke ellipse,
-          .anim-new-stroke rect,
-          .anim-new-stroke line,
-          .anim-new-stroke polyline,
-          .anim-new-stroke polygon {
-            stroke-dasharray: 1200;
-            stroke-dashoffset: 1200;
-            animation: strokeDraw 1.8s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+          @keyframes fillIn {
+            from {
+              fill-opacity: 0;
+            }
+            to {
+              fill-opacity: 1;
+            }
           }
-          .highlight-stroke path,
-          .highlight-stroke circle,
-          .highlight-stroke ellipse,
-          .highlight-stroke rect,
-          .highlight-stroke line,
-          .highlight-stroke polyline,
-          .highlight-stroke polygon {
-            stroke: #2563eb !important;
-            stroke-width: 9px !important;
+
+          .anim-new-stroke > * {
+            stroke-dasharray: 1;
+            stroke-dashoffset: 1;
+            animation: strokeDraw 1.2s ease-out forwards,
+                       fillIn 0.4s 1.0s ease-out backwards;
           }
+
+          .highlight-stroke > * {
+            filter: drop-shadow(0 0 6px #2563eb);
+          }
+
           .previous-stroke {
             opacity: 0.95;
           }
@@ -113,7 +130,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
           <g
             key={`prev-step-${step.step_number}-${idx}`}
             className="previous-stroke"
-            dangerouslySetInnerHTML={{ __html: step.svg_code }}
+            dangerouslySetInnerHTML={{ __html: withPathLength(step.svg_code) }}
           />
         ))}
 
@@ -122,7 +139,7 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
           <g
             key={`active-step-${currentStep.step_number}-${animationKey}`}
             className={`anim-new-stroke ${highlightNewStroke ? 'highlight-stroke' : ''}`}
-            dangerouslySetInnerHTML={{ __html: currentStep.svg_code }}
+            dangerouslySetInnerHTML={{ __html: withPathLength(currentStep.svg_code) }}
           />
         )}
       </>
@@ -169,12 +186,8 @@ export const DrawingStage: React.FC<DrawingStageProps> = ({
           {isSpeechSupported() && (
             <button
               onClick={() => {
-                if (voiceEnabled) {
-                  stopSpeech();
-                  setVoiceEnabled(false);
-                  setIsSpeaking(false);
-                } else {
-                  setVoiceEnabled(true);
+                if (onToggleVoice) {
+                  onToggleVoice();
                 }
               }}
               className={`p-2 rounded-full transition ${
